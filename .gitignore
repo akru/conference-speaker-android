@@ -1,0 +1,5 @@
+.gradle
+/app/app.apk
+/local.properties
+/.idea/workspace.xml
+.DS_Store
