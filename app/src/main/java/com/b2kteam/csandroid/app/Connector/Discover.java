@@ -1,5 +1,6 @@
 package com.b2kteam.csandroid.app.Connector;
 
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 
@@ -25,18 +26,12 @@ public class Discover implements Runnable {
         handler = discoverHandler;
         // open UDP broadcast listener
         socket = new DatagramSocket(DISCOVER_PORT, InetAddress.getByName(DISCOVER_ADDRESS));
-        // down stop flag
-        stop = false;
-    }
-
-    public void cancel() {
-        stop = true;
     }
 
     @Override
     public void run() {
         try {
-            while (!stop) {
+            while (!Thread.currentThread().isInterrupted()) {
                 DatagramPacket packet =
                         new DatagramPacket(new byte[inputBufferSize], inputBufferSize);
                 // receive broadcast packet
@@ -59,13 +54,16 @@ public class Discover implements Runnable {
 
     private void emitServerInfo(ServerInfo serverInfo) {
         Message msg = new Message();
-        msg.obj = serverInfo;
+        Bundle data = new Bundle();
+        data.putString("name", serverInfo.getName());
+        data.putString("address", serverInfo.getAddress());
+        data.putInt("port", serverInfo.getPort());
+        msg.setData(data);
         handler.sendMessage(msg);
     }
 
     private Handler handler;
     private DatagramSocket socket;
-    private volatile boolean stop;
 
     private final int inputBufferSize = 100;
 }

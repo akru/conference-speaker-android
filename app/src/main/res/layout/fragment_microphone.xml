@@ -12,7 +12,7 @@
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:text="@string/mute_notice"
-        android:textSize="22sp"
+        android:textSize="20sp"
         android:id="@+id/textView" />
 
     <ImageView
@@ -29,6 +29,7 @@
         android:layout_below="@+id/mic_image"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="50dp"
-        android:onClick="onClick"/>
+        android:clickable="false"
+        android:width="100dp" />
 
 </RelativeLayout>

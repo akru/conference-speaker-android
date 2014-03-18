@@ -11,19 +11,71 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
+import android.widget.ToggleButton;
 
+import java.io.IOException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
+import com.b2kteam.csandroid.app.Connector.Connector;
 import com.b2kteam.csandroid.app.Connector.Discover;
-import com.b2kteam.csandroid.app.Transmitter.TransmitterStatus;
+import com.b2kteam.csandroid.app.Connector.ServerInfo;
+import com.b2kteam.csandroid.app.Connector.UserInfo;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 
 public class MainActivity extends ActionBarActivity {
 
-    private Handler transmitterStatus;
-    private Handler connectorStatus;
-    private Handler discoverHandler;
+    private Thread discover;
+    private Connector connector;
+
+    protected void toast(String message) {
+        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+    }
+
+    protected void connectToServer(ServerInfo serverInfo) {
+        try {
+            connector = new Connector(serverInfo);
+
+            UserInfo userInfo = new UserInfo("akru");
+            JSONObject res = connector.doRegistrationRequest(userInfo);
+            String result = res.getString("result");
+
+            if (result == "error") {
+                toast(res.getString("message"));
+                return;
+            }
+            else
+                toast("Registration successful");
+
+            ToggleButton b = (ToggleButton) findViewById(R.id.record_button);
+            b.setClickable(true);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    try {
+                        JSONObject chan = connector.doChannelRequest();
+                        toast(chan.getString("result") +
+                                " -> " + chan.getJSONObject("channel").getInt("port"));
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,46 +86,30 @@ public class MainActivity extends ActionBarActivity {
                     .commit();
         }
 
-        // transmitter status handler
-        transmitterStatus = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                switch ((TransmitterStatus) msg.obj) {
-                    case CONNECTED:
-                        break;
-                    case RECORDING:
-                        break;
-                    case ERROR:
-                        break;
-                }
-                Log.i("TRANSMITTER", msg.obj.toString());
-            }
-        };
-
-        // connector status handler
-        connectorStatus = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Log.i("CONNECTOR", msg.obj.toString());
-            }
-        };
-
         // discover message handler
-        discoverHandler = new Handler() {
+        Handler discoverHandler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
-                Log.i("DISCOVER", msg.obj.toString());
+                discover.interrupt();
+
+                Bundle server = msg.getData();
+                toast("New server: " + server.getString("name"));
+
+                ServerInfo serverInfo = new ServerInfo(server.getString("name"),
+                        server.getString("address"), server.getInt("port"));
+                connectToServer(serverInfo);
             }
         };
-
         // start discover thread
         try {
-            new Thread(new Discover(discoverHandler)).start();
+            discover = new Thread(new Discover(discoverHandler));
+            discover.start();
         } catch (SocketException e) {
             e.printStackTrace();
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+        toast("Discovering the server...");
     }
 
     public void onClick(View view) {
