@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:text="@string/mute_notice"
         android:textSize="20sp"
-        android:id="@+id/textView" />
+        android:id="@+id/hint_text" />
 
     <ImageView
         android:id="@+id/mic_image"

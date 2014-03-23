@@ -11,6 +11,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CompoundButton;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
@@ -22,25 +24,63 @@ import com.b2kteam.csandroid.app.Connector.Connector;
 import com.b2kteam.csandroid.app.Connector.Discover;
 import com.b2kteam.csandroid.app.Connector.ServerInfo;
 import com.b2kteam.csandroid.app.Connector.UserInfo;
+import com.b2kteam.csandroid.app.Transmitter.Transmitter;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
 
 public class MainActivity extends ActionBarActivity {
-
-    private Thread discover;
-    private Connector connector;
+    private Thread discover = null;
+    private UserInfo userInfo = new UserInfo("akru");
+    private Connector connector = new Connector();
+    private Thread transmitter = null;
 
     protected void toast(String message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
-    protected void connectToServer(ServerInfo serverInfo) {
-        try {
-            connector = new Connector(serverInfo);
+    protected void setNotice(String message) {
+        TextView notice = (TextView) findViewById(R.id.hint_text);
+        notice.setText(message);
+    }
 
-            UserInfo userInfo = new UserInfo("akru");
+    protected void setNotice(int message) {
+        TextView notice = (TextView) findViewById(R.id.hint_text);
+        notice.setText(message);
+    }
+
+    protected void startTransmit() {
+        try {
+            JSONObject chan = connector.doChannelRequest();
+            int port = chan.getJSONObject("channel").getInt("port");
+            String host = chan.getJSONObject("channel").getString("host");
+            toast("Get channel: " + chan.getString("result") + " -> " + port);
+
+            Transmitter t = new Transmitter();
+            t.setChannel(host, port);
+
+            transmitter = new Thread(t);
+            transmitter.start();
+
+            setNotice(R.string.mute_notice);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected void stopTransmit() {
+        if (transmitter.isAlive())
+            transmitter.interrupt();
+        toast("Translation terminated");
+    }
+
+    protected void connectToServer(final ServerInfo serverInfo) {
+        try {
+            setNotice(R.string.connecting);
+            connector.setServer(serverInfo);
             JSONObject res = connector.doRegistrationRequest(userInfo);
             String result = res.getString("result");
 
@@ -48,22 +88,20 @@ public class MainActivity extends ActionBarActivity {
                 toast(res.getString("message"));
                 return;
             }
-            else
-                toast("Registration successful");
 
-            ToggleButton b = (ToggleButton) findViewById(R.id.record_button);
-            b.setClickable(true);
-            b.setOnClickListener(new View.OnClickListener() {
+            toast("Registration successful on " + serverInfo.getName());
+            setNotice(serverInfo.getName());
+
+            ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
+            btn.setClickable(true);
+            btn.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 @Override
-                public void onClick(View view) {
-                    try {
-                        JSONObject chan = connector.doChannelRequest();
-                        toast(chan.getString("result") +
-                                " -> " + chan.getJSONObject("channel").getInt("port"));
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+                public void onCheckedChanged(CompoundButton cb, boolean isChecked) {
+                    if (isChecked) {
+                        startTransmit();
+                    }
+                    else {
+                        stopTransmit();
                     }
                 }
             });
@@ -90,20 +128,20 @@ public class MainActivity extends ActionBarActivity {
         Handler discoverHandler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
-                discover.interrupt();
-
-                Bundle server = msg.getData();
-                toast("New server: " + server.getString("name"));
-
-                ServerInfo serverInfo = new ServerInfo(server.getString("name"),
-                        server.getString("address"), server.getInt("port"));
-                connectToServer(serverInfo);
+                if (!connector.isConnected()) {
+                    Bundle server = msg.getData();
+                    ServerInfo serverInfo = new ServerInfo(server.getString("name"),
+                            server.getString("address"), server.getInt("port"));
+                    connectToServer(serverInfo);
+                }
             }
         };
-        // start discover thread
+        // start discover thread when not started
         try {
-            discover = new Thread(new Discover(discoverHandler));
-            discover.start();
+            if (discover == null) {
+                discover = new Thread(new Discover(discoverHandler));
+                discover.start();
+            }
         } catch (SocketException e) {
             e.printStackTrace();
         } catch (UnknownHostException e) {

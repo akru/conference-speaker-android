@@ -6,5 +6,6 @@
     <string name="action_settings">Settings</string>
 
     <string name="mute_notice">Please mute while you are silent.</string>
+    <string name="connecting">Connecting...</string>
 
 </resources>

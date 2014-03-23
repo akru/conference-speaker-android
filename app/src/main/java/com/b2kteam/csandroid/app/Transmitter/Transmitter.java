@@ -14,50 +14,34 @@ import static java.lang.Thread.currentThread;
  * Created by akru on 16.03.14.
  */
 public class Transmitter implements Runnable {
-    public Transmitter(String address, int port, Handler statusHandler) throws IOException {
-        // store status handler
-        handler = statusHandler;
-        // open socket connection
-        socket = new Socket(address, port);
+    public Transmitter() {
         // open audio recorder
         recorder = new Recorder();
-        // down stop flag
-        stop = false;
-        // emit success init
-        emitStatus(TransmitterStatus.CONNECTED);
     }
 
-    public void sendAudioBuffer(ByteBuffer buffer) throws IOException {
+    public void setChannel(String address, int port) throws IOException {
+        // open socket connection
+        socket = new Socket(address, port);
+    }
+
+    public void sendAudioBuffer(byte [] buffer) throws IOException {
         OutputStream os = socket.getOutputStream();
-        os.write(buffer.array());
-    }
-
-    public void cancel() {
-        stop = true;
+        os.write(buffer);
     }
 
     @Override
     public void run() {
-        // emit recording status
-        emitStatus(TransmitterStatus.RECORDING);
-        while (!stop) {
+        // start recorder
+        recorder.start();
+        while (!Thread.currentThread().isInterrupted()) {
             try {
                 sendAudioBuffer(recorder.getAudioData());
             } catch (IOException e) {
-                emitStatus(TransmitterStatus.ERROR);
                 e.printStackTrace();
             }
         }
     }
 
-    private void emitStatus(TransmitterStatus status) {
-        Message msg = new Message();
-        msg.obj = status;
-        handler.sendMessage(msg);
-    }
-
-    private Handler handler;
     private Socket socket;
     private Recorder recorder;
-    private volatile boolean stop;
 }

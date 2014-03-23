@@ -17,19 +17,28 @@ public class Recorder {
         // open microphone recorder
         recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,
                 8000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize);
+        // allocate new buffer
+        buffer = new byte[bufferSize];
+    }
+
+    public void start() {
         // start recording
         recorder.startRecording();
     }
 
-    public ByteBuffer getAudioData() {
-        // allocate new buffer
-        ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+    public void stop() {
+        recorder.stop();
+        recorder.release();
+    }
+
+    public byte [] getAudioData() {
         // read audio data
-        recorder.read(buffer, bufferSize);
+        recorder.read(buffer, 0, bufferSize);
         // return buffer
         return buffer;
     }
 
+    private byte [] buffer;
     private int bufferSize;
     private AudioRecord recorder;
 }
