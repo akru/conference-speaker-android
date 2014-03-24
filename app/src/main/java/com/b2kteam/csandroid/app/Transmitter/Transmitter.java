@@ -5,6 +5,9 @@ import android.os.Message;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 
@@ -21,12 +24,13 @@ public class Transmitter implements Runnable {
 
     public void setChannel(String address, int port) throws IOException {
         // open socket connection
-        socket = new Socket(address, port);
+        socket = new DatagramSocket();
+        socket.connect(InetAddress.getByName(address), port);
     }
 
     public void sendAudioBuffer(byte [] buffer) throws IOException {
-        OutputStream os = socket.getOutputStream();
-        os.write(buffer);
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        socket.send(packet);
     }
 
     @Override
@@ -42,6 +46,6 @@ public class Transmitter implements Runnable {
         }
     }
 
-    private Socket socket;
+    private DatagramSocket socket;
     private Recorder recorder;
 }
