@@ -29,7 +29,7 @@
         android:layout_below="@+id/mic_image"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="50dp"
-        android:clickable="false"
+        android:onClick="onClick"
         android:width="100dp" />
 
 </RelativeLayout>

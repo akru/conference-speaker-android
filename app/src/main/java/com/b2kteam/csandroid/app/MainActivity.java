@@ -50,12 +50,16 @@ public class MainActivity extends ActionBarActivity {
         notice.setText(message);
     }
 
-    protected void startTransmit() {
+    protected boolean startTransmit() {
+        if (!connector.isConnected()) {
+            toast("No server connected");
+            return false;
+        }
+
         try {
             JSONObject chan = connector.doChannelRequest();
             int port = chan.getJSONObject("channel").getInt("port");
             String host = chan.getJSONObject("channel").getString("host");
-            toast("Get channel: " + chan.getString("result") + " -> " + port);
 
             Transmitter t = new Transmitter();
             t.setChannel(host, port);
@@ -63,12 +67,13 @@ public class MainActivity extends ActionBarActivity {
             transmitter = new Thread(t);
             transmitter.start();
 
-            setNotice(R.string.mute_notice);
+            return true;
         } catch (JSONException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return false;
     }
 
     protected void stopTransmit() {
@@ -78,40 +83,47 @@ public class MainActivity extends ActionBarActivity {
     }
 
     protected void connectToServer(final ServerInfo serverInfo) {
-        try {
-            setNotice(R.string.connecting);
-            connector.setServer(serverInfo);
-            JSONObject res = connector.doRegistrationRequest(userInfo);
-            String result = res.getString("result");
+        setNotice(R.string.connecting);
 
-            if (result == "error") {
-                toast(res.getString("message"));
-                return;
+        final Handler toastHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Bundle msgData = msg.getData();
+                toast(msgData.getString("toast"));
+                if (msgData.getBoolean("result")) {
+                    setNotice(serverInfo.getName());
+                }
             }
+        };
 
-            toast("Registration successful on " + serverInfo.getName());
-            setNotice(serverInfo.getName());
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Message msg = new Message();
+                    Bundle data = new Bundle();
 
-            ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
-            btn.setClickable(true);
-            btn.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton cb, boolean isChecked) {
-                    if (isChecked) {
-                        startTransmit();
+                    connector.setServer(serverInfo);
+                    JSONObject res = connector.doRegistrationRequest(userInfo);
+                    String result = res.getString("result");
+
+                    if (result == "error") {
+                        data.putString("toast", res.getString("message"));
+                        data.putBoolean("result", false);
                     }
                     else {
-                        stopTransmit();
+                        data.putString("toast","Registration successful on " + serverInfo.getName());
+                        data.putBoolean("result", true);
                     }
+                    msg.setData(data);
+                    toastHandler.sendMessage(msg);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
-            });
-
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+            }
+        }).start();
     }
 
     @Override
@@ -122,35 +134,72 @@ public class MainActivity extends ActionBarActivity {
             getSupportFragmentManager().beginTransaction()
                     .add(R.id.container, new PlaceholderFragment())
                     .commit();
+
+
+            // discover message handler
+            Handler discoverHandler = new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    if (!connector.isConnected()) {
+                        Bundle server = msg.getData();
+                        ServerInfo serverInfo = new ServerInfo(server.getString("name"),
+                                server.getString("address"), server.getInt("port"));
+                        connectToServer(serverInfo);
+                    }
+                }
+            };
+
+            // start discover thread when not started
+            try {
+                if (discover == null) {
+                    discover = new Thread(new Discover(discoverHandler));
+                    discover.start();
+                    toast("Discovering the server...");
+                }
+            } catch (SocketException e) {
+                e.printStackTrace();
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
+
         }
 
-        // discover message handler
-        Handler discoverHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                if (!connector.isConnected()) {
-                    Bundle server = msg.getData();
-                    ServerInfo serverInfo = new ServerInfo(server.getString("name"),
-                            server.getString("address"), server.getInt("port"));
-                    connectToServer(serverInfo);
-                }
-            }
-        };
-        // start discover thread when not started
-        try {
-            if (discover == null) {
-                discover = new Thread(new Discover(discoverHandler));
-                discover.start();
-            }
-        } catch (SocketException e) {
-            e.printStackTrace();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        }
-        toast("Discovering the server...");
     }
 
     public void onClick(View view) {
+        final ToggleButton btn = (ToggleButton) view;
+
+        final Handler resHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Bundle data = msg.getData();
+                if (data.getBoolean("result"))
+                    setNotice(R.string.mute_notice);
+                else
+                    btn.setChecked(false);
+            }
+        };
+
+        if (btn.isChecked()) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Message msg = new Message();
+                    Bundle data = new Bundle();
+
+                    if (!startTransmit())
+                        data.putBoolean("result", false);
+                    else
+                        data.putBoolean("result", true);
+
+                    msg.setData(data);
+                    resHandler.sendMessage(msg);
+                }
+            }).start();
+        }
+        else {
+            stopTransmit();
+        }
     }
 
     @Override

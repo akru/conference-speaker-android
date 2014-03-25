@@ -16,14 +16,17 @@ import org.json.JSONObject;
  * Created by akru on 13.03.14.
  */
 public class Connector {
+
+    private Socket socket;
+    private final int readBufferSize = 1000;
+
     public void setServer(ServerInfo serverInfo) throws IOException {
         // open socket connection with server
         socket = new Socket(serverInfo.getAddress(), serverInfo.getPort());
-        serverUp = true;
     }
 
     public boolean isConnected() {
-        if (serverUp)
+        if (socket != null)
             return socket.isConnected();
         else
             return false;
@@ -74,8 +77,4 @@ public class Connector {
             // return response as JSON object
             return new JSONObject(responseJson);
     }
-
-    private boolean serverUp = false;
-    private Socket socket;
-    private final int readBufferSize = 1000;
 }
