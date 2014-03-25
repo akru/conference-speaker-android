@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Message;
 
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -38,32 +39,29 @@ public class Discover implements Runnable {
                 socket.receive(packet);
                 // convert binary data to string
                 String json = new String(packet.getData(), "UTF-8");
-                // parse server information
-                ServerInfo server = ServerInfo.fromJson(json);
                 // notice main thread about new server
-                emitServerInfo(server);
+                emitServerInfo(json);
             }
         } catch (IOException e) {
             e.printStackTrace();
         } catch (JSONException e) {
             e.printStackTrace();
         }
-
-
     }
 
-    private void emitServerInfo(ServerInfo serverInfo) {
+    private void emitServerInfo(String serverInfo) throws JSONException{
         Message msg = new Message();
         Bundle data = new Bundle();
-        data.putString("name", serverInfo.getName());
-        data.putString("address", serverInfo.getAddress());
-        data.putInt("port", serverInfo.getPort());
+
+        JSONObject server = new JSONObject(serverInfo);
+        data.putString("name", server.getString("name"));
+        data.putString("address", server.getString("address"));
+        data.putInt("port", server.getInt("port"));
         msg.setData(data);
         handler.sendMessage(msg);
     }
 
     private Handler handler;
     private DatagramSocket socket;
-
     private final int inputBufferSize = 100;
 }

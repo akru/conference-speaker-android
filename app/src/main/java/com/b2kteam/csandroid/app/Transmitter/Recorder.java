@@ -3,7 +3,6 @@ package com.b2kteam.csandroid.app.Transmitter;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import java.nio.ByteBuffer;
 
 /**
  * Created by akru on 13.03.14.

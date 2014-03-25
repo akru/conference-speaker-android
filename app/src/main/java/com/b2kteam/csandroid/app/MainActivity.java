@@ -11,19 +11,15 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CompoundButton;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
 
-import java.io.IOException;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
 import com.b2kteam.csandroid.app.Connector.Connector;
 import com.b2kteam.csandroid.app.Connector.Discover;
-import com.b2kteam.csandroid.app.Connector.ServerInfo;
-import com.b2kteam.csandroid.app.Connector.UserInfo;
 import com.b2kteam.csandroid.app.Transmitter.Transmitter;
 
 import org.json.JSONException;
@@ -32,11 +28,12 @@ import org.json.JSONObject;
 
 public class MainActivity extends ActionBarActivity {
     private Thread discover = null;
-    private UserInfo userInfo = new UserInfo("akru");
-    private Connector connector = new Connector();
+    private Thread connector = null;
     private Thread transmitter = null;
+    private Handler connectorCmd = null;
+    private String serverName;
 
-    protected void toast(String message) {
+    protected void toast(int message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
     }
 
@@ -50,101 +47,99 @@ public class MainActivity extends ActionBarActivity {
         notice.setText(message);
     }
 
-    protected boolean startTransmit() {
-        if (!connector.isConnected()) {
-            toast("No server connected");
-            return false;
-        }
-
-        try {
-            JSONObject chan = connector.doChannelRequest();
-            int port = chan.getJSONObject("channel").getInt("port");
-            String host = chan.getJSONObject("channel").getString("host");
-
-            Transmitter t = new Transmitter();
-            t.setChannel(host, port);
-
-            transmitter = new Thread(t);
-            transmitter.start();
-
-            return true;
-        } catch (JSONException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-    protected void stopTransmit() {
-        if (transmitter.isAlive())
-            transmitter.interrupt();
-        toast("Translation terminated");
-    }
-
-    protected void connectToServer(final ServerInfo serverInfo) {
-        setNotice(R.string.connecting);
-
-        final Handler toastHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle msgData = msg.getData();
-                toast(msgData.getString("toast"));
-                if (msgData.getBoolean("result")) {
-                    setNotice(serverInfo.getName());
-                }
-            }
-        };
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Message msg = new Message();
-                    Bundle data = new Bundle();
-
-                    connector.setServer(serverInfo);
-                    JSONObject res = connector.doRegistrationRequest(userInfo);
-                    String result = res.getString("result");
-
-                    if (result == "error") {
-                        data.putString("toast", res.getString("message"));
-                        data.putBoolean("result", false);
-                    }
-                    else {
-                        data.putString("toast","Registration successful on " + serverInfo.getName());
-                        data.putBoolean("result", true);
-                    }
-                    msg.setData(data);
-                    toastHandler.sendMessage(msg);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         if (savedInstanceState == null) {
             getSupportFragmentManager().beginTransaction()
                     .add(R.id.container, new PlaceholderFragment())
                     .commit();
+            final Bundle userInfo = new Bundle();
+            userInfo.putString("name", "akru");
 
+            final Handler connectorHandler = new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    Bundle data = msg.getData();
+                    JSONObject response;
+                    String result;
+                    try {
+                        response = new JSONObject(data.getString("response"));
+                        result = response.getString("result");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                        return;
+                    }
+                    switch (data.getInt("action")) {
+                        case Connector.REGISTRATION_ACTION:
+                            if (result.contains("success")) {
+                                toast(R.string.toast_registration_success);
+                                setNotice(serverName);
+                            }
+                            else
+                                toast(R.string.toast_registration_error);
+                            break;
+                        case Connector.CHANNEL_ACTION:
+                            // Activate button
+                            ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
+                            btn.setClickable(true);
+
+                            if (result.contains("success")) {
+                                toast(R.string.toast_channel_success);
+                                try {
+                                    JSONObject channel = response.getJSONObject("channel");
+                                    String host = channel.getString("host");
+                                    int port = channel.getInt("port");
+                                    // Create transmitter thread
+                                    transmitter = new Thread(new Transmitter(host, port));
+                                    transmitter.start();
+                                    // Mute notice
+                                    setNotice(R.string.notice_mute);
+                                    // button enabled
+                                    btn.setChecked(true);
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                    return;
+                                }
+                            }
+                            else {
+                                toast(R.string.toast_channel_error);
+                                // button disabled
+                                btn.setChecked(false);
+                            }
+                            break;
+                    }
+                }
+            };
 
             // discover message handler
             Handler discoverHandler = new Handler() {
                 @Override
                 public void handleMessage(Message msg) {
-                    if (!connector.isConnected()) {
+                    if (connector == null) {
+                        // Get server info
                         Bundle server = msg.getData();
-                        ServerInfo serverInfo = new ServerInfo(server.getString("name"),
-                                server.getString("address"), server.getInt("port"));
-                        connectToServer(serverInfo);
+                        // Create connector
+                        Connector c = new Connector(connectorHandler);
+                        // Create connector thread
+                        connector = new Thread(c);
+                        connector.start();
+                        // Waiting for command handler creation
+                        while (c.getCommandHandler() == null);
+                        connectorCmd = c.getCommandHandler();
+                        // Create registration request
+                        Bundle req = new Bundle();
+                        req.putInt("action", Connector.REGISTRATION_ACTION);
+                        req.putBundle("server", server);
+                        req.putBundle("user", userInfo);
+                        // Store server name
+                        serverName = server.getString("name");
+
+                        Message reqMsg = new Message();
+                        reqMsg.setData(req);
+                        connectorCmd.sendMessage(reqMsg);
                     }
                 }
             };
@@ -154,51 +149,33 @@ public class MainActivity extends ActionBarActivity {
                 if (discover == null) {
                     discover = new Thread(new Discover(discoverHandler));
                     discover.start();
-                    toast("Discovering the server...");
+                    toast(R.string.toast_discovering);
                 }
             } catch (SocketException e) {
                 e.printStackTrace();
             } catch (UnknownHostException e) {
                 e.printStackTrace();
             }
-
         }
-
     }
 
     public void onClick(View view) {
-        final ToggleButton btn = (ToggleButton) view;
-
-        final Handler resHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle data = msg.getData();
-                if (data.getBoolean("result"))
-                    setNotice(R.string.mute_notice);
-                else
-                    btn.setChecked(false);
-            }
-        };
+        ToggleButton btn = (ToggleButton) view;
 
         if (btn.isChecked()) {
-            new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    Message msg = new Message();
-                    Bundle data = new Bundle();
-
-                    if (!startTransmit())
-                        data.putBoolean("result", false);
-                    else
-                        data.putBoolean("result", true);
-
-                    msg.setData(data);
-                    resHandler.sendMessage(msg);
-                }
-            }).start();
+            btn.setChecked(false);
+            btn.setClickable(false);
+            // Create channel request
+            toast(R.string.toast_connecting);
+            Bundle req = new Bundle();
+            req.putInt("action", Connector.CHANNEL_ACTION);
+            Message reqMsg = new Message();
+            reqMsg.setData(req);
+            connectorCmd.sendMessage(reqMsg);
         }
         else {
-            stopTransmit();
+            if (transmitter != null)
+                transmitter.interrupt();
         }
     }
 

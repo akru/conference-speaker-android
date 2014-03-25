@@ -1,31 +1,23 @@
 package com.b2kteam.csandroid.app.Transmitter;
 
-import android.os.Handler;
-import android.os.Message;
+import android.os.Bundle;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.Socket;
-import java.nio.ByteBuffer;
-
-import static java.lang.Thread.currentThread;
+import java.net.SocketException;
 
 /**
  * Created by akru on 16.03.14.
  */
 public class Transmitter implements Runnable {
-    public Transmitter() {
+    public Transmitter(String serverAddress, int serverPort) {
         // open audio recorder
         recorder = new Recorder();
-    }
-
-    public void setChannel(String address, int port) throws IOException {
-        // open socket connection
-        socket = new DatagramSocket();
-        socket.connect(InetAddress.getByName(address), port);
+        // Get server address and port
+        address = serverAddress;
+        port = serverPort;
     }
 
     public void sendAudioBuffer(byte [] buffer) throws IOException {
@@ -37,15 +29,20 @@ public class Transmitter implements Runnable {
     public void run() {
         // start recorder
         recorder.start();
-        while (!Thread.currentThread().isInterrupted()) {
-            try {
+        try {
+            socket = new DatagramSocket();
+            socket.connect(InetAddress.getByName(address), port);
+            while (!Thread.currentThread().isInterrupted()) {
                 sendAudioBuffer(recorder.getAudioData());
-            } catch (IOException e) {
-                e.printStackTrace();
+
             }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
+    private String address;
+    private int port;
     private DatagramSocket socket;
     private Recorder recorder;
 }

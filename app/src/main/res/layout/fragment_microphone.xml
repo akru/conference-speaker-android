@@ -11,7 +11,7 @@
     <TextView
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:text="@string/mute_notice"
+        android:text=""
         android:textSize="20sp"
         android:id="@+id/hint_text" />
 
