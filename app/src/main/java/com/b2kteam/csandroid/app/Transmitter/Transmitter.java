@@ -34,10 +34,11 @@ public class Transmitter implements Runnable {
             socket.connect(InetAddress.getByName(address), port);
             while (!Thread.currentThread().isInterrupted()) {
                 sendAudioBuffer(recorder.getAudioData());
-
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            recorder.stop();
         }
     }
 

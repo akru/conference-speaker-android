@@ -26,6 +26,7 @@ public class Connector implements Runnable {
 
     public static final int REGISTRATION_ACTION = 0;
     public static final int CHANNEL_ACTION      = 1;
+    public static final int CHANNEL_CLOSE_ACTION= 2;
 
     public Connector(Handler handler) {
         resultHandler = handler;
@@ -35,14 +36,10 @@ public class Connector implements Runnable {
         return commandHandler;
     }
 
-    public boolean isConnected() {
-        if (socket != null)
-            return socket.isConnected();
-        else
-            return false;
-    }
-
     public String doRegistrationRequest(Bundle serverInfo, Bundle userInfo) throws JSONException, IOException {
+        //Close socket when connected
+        if (socket != null && socket.isConnected())
+            socket.close();
         // open socket connection with server
         socket = new Socket(serverInfo.getString("address"), serverInfo.getInt("port"));
 
@@ -90,6 +87,16 @@ public class Connector implements Runnable {
             return responseJson;
     }
 
+    public void doChannelCloseRequest() throws JSONException, IOException {
+        // prepare request packet
+        JSONObject packet = new JSONObject();
+        packet.put("request", "channel_close");
+        // open out stream
+        OutputStream os = socket.getOutputStream();
+        // send JSON packet over socket
+        os.write(packet.toString().getBytes("UTF-8"));
+    }
+
     private void emitResult(int action, String response) {
         Message msg = new Message();
         Bundle data = new Bundle();
@@ -130,6 +137,15 @@ public class Connector implements Runnable {
                                 e.printStackTrace();
                             }
                             break;
+                        case CHANNEL_CLOSE_ACTION:
+                            try {
+                                doChannelCloseRequest();
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            break;
                     }
                 }
             };
@@ -139,82 +155,3 @@ public class Connector implements Runnable {
         }
     }
 }
-
-/*
-
-    protected boolean startTransmit() {
-        if (!connector.isConnected()) {
-            toast("No server connected");
-            return false;
-        }
-
-        try {
-            JSONObject chan = connector.doChannelRequest();
-            int port = chan.getJSONObject("channel").getInt("port");
-            String host = chan.getJSONObject("channel").getString("host");
-
-            Transmitter t = new Transmitter();
-            t.setChannel(host, port);
-
-            transmitter = new Thread(t);
-            transmitter.start();
-
-            return true;
-        } catch (JSONException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-    protected void stopTransmit() {
-        if (transmitter.isAlive())
-            transmitter.interrupt();
-        toast("Translation terminated");
-    }
-
-    protected void connectToServer(final ServerInfo serverInfo) {
-        setNotice(R.string.connecting);
-
-        final Handler toastHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle msgData = msg.getData();
-                toast(msgData.getString("toast"));
-                if (msgData.getBoolean("result")) {
-                    setNotice(serverInfo.getName());
-                }
-            }
-        };
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Message msg = new Message();
-                    Bundle data = new Bundle();
-
-                    connector.setServer(serverInfo);
-                    JSONObject res = connector.doRegistrationRequest(userInfo);
-                    String result = res.getString("result");
-
-                    if (result == "error") {
-                        data.putString("toast", res.getString("message"));
-                        data.putBoolean("result", false);
-                    }
-                    else {
-                        data.putString("toast","Registration successful on " + serverInfo.getName());
-                        data.putBoolean("result", true);
-                    }
-                    msg.setData(data);
-                    toastHandler.sendMessage(msg);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
-    }
- */

@@ -20,13 +20,12 @@ import java.net.UnknownHostException;
 public class Discover implements Runnable {
     // Discover constants
     public static final int    DISCOVER_PORT    = 35000;
-    public static final String DISCOVER_ADDRESS = "255.255.255.255";
 
-    public Discover(Handler discoverHandler) throws SocketException, UnknownHostException {
+    public Discover(Handler discoverHandler, InetAddress broadcastAddress) throws SocketException, UnknownHostException {
         // store discover handler
         handler = discoverHandler;
         // open UDP broadcast listener
-        socket = new DatagramSocket(DISCOVER_PORT, InetAddress.getByName(DISCOVER_ADDRESS));
+        socket = new DatagramSocket(DISCOVER_PORT, broadcastAddress);
     }
 
     @Override
