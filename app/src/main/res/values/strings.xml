@@ -13,5 +13,4 @@
     <string name="toast_registration_error">Registration failure!</string>
     <string name="toast_channel_success">Voice channel open success</string>
     <string name="toast_channel_error">Channel opening failure!</string>
-
 </resources>

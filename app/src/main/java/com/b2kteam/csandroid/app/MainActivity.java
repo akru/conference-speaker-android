@@ -1,10 +1,14 @@
 package com.b2kteam.csandroid.app;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.os.Handler;
+import android.preference.Preference;
+import android.preference.PreferenceManager;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -74,8 +78,12 @@ public class MainActivity extends ActionBarActivity {
         if (savedInstanceState == null) {
 
         }
+        SharedPreferences preferences =
+                PreferenceManager.getDefaultSharedPreferences(this);
         final Bundle userInfo = new Bundle();
-        userInfo.putString("name", "akru");
+        userInfo.putString("name", preferences.getString("prefName", "Unknown"));
+        userInfo.putString("company", preferences.getString("prefCompany", "Unknown"));
+        userInfo.putString("title", preferences.getString("prefTitle", "Unknown"));
 
         final Handler connectorHandler = new Handler() {
             @Override
@@ -255,9 +263,12 @@ public class MainActivity extends ActionBarActivity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-        if (id == R.id.action_settings) {
-            return true;
+        switch (id) {
+            case R.id.action_settings:
+                Intent i = new Intent(this, SettingsActivity.class);
+                startActivityForResult(i, RESULT_OK);
+                break;
         }
-        return super.onOptionsItemSelected(item);
+        return true;
     }
 }

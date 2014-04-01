@@ -49,6 +49,8 @@ public class Connector implements Runnable {
         // convert user info to JSON
         JSONObject user = new JSONObject();
         user.put("name", userInfo.getString("name"));
+        user.put("company", userInfo.getString("company"));
+        user.put("title", userInfo.getString("title"));
 
         packet.put("user", user);
         // open out stream
