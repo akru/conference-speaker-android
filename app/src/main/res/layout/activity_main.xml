@@ -10,11 +10,11 @@
     tools:context="com.b2kteam.csandroid.app.MainActivity">
 
     <TextView
+        android:id="@+id/hint_text"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:text=""
-        android:textSize="20sp"
-        android:id="@+id/hint_text" />
+        android:textSize="20sp"/>
 
     <ImageView
         android:id="@+id/mic_image"
@@ -24,9 +24,9 @@
         android:background="@drawable/ic_microphone"/>
 
     <ToggleButton
+        android:id="@+id/record_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/record_button"
         android:layout_below="@+id/mic_image"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="50dp"
@@ -35,11 +35,20 @@
         android:width="100dp" />
 
     <Spinner
+        android:id="@+id/server_select"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/server_select"
         android:layout_below="@+id/record_button"
         android:layout_centerHorizontal="true"
         android:spinnerMode="dropdown" />
+
+    <Button
+        android:id="@+id/vote_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:onClick="onClickVote"
+        android:clickable="false"
+        android:text="@string/vote_button"/>
 
 </RelativeLayout>

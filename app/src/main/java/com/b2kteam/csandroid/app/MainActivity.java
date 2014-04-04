@@ -1,6 +1,8 @@
 package com.b2kteam.csandroid.app;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.DhcpInfo;
@@ -16,6 +18,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -75,8 +78,8 @@ public class MainActivity extends ActionBarActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (savedInstanceState == null) {
-
+        if (savedInstanceState != null) {
+            return;
         }
         SharedPreferences preferences =
                 PreferenceManager.getDefaultSharedPreferences(this);
@@ -104,8 +107,11 @@ public class MainActivity extends ActionBarActivity {
                             toast(R.string.toast_registration_success);
                             setNotice("Connected");
 
+                            // Enable buttons
                             ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
                             btn.setClickable(true);
+                            Button vbtn = (Button) findViewById(R.id.vote_button);
+                            vbtn.setClickable(true);
                         }
                         else
                             toast(R.string.toast_registration_error);
@@ -138,6 +144,12 @@ public class MainActivity extends ActionBarActivity {
                             // button disabled
                             btn.setChecked(false);
                         }
+                        break;
+                    case Connector.VOTE_ACTION:
+                        if (result.contains("success"))
+                            toast(R.string.toast_vote_success);
+                        else
+                            toast(R.string.toast_vote_error);
                         break;
                 }
             }
@@ -247,6 +259,45 @@ public class MainActivity extends ActionBarActivity {
             reqMsg.setData(req);
             connectorCmd.sendMessage(reqMsg);
         }
+    }
+
+    public void onClickVote(View view) {
+        final Bundle req = new Bundle();
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        builder.setTitle(R.string.vote_dialog_title);
+        builder.setMessage(R.string.vote_dialog_content);
+
+        builder.setPositiveButton(R.string.vote_dialog_yes,
+                new DialogInterface.OnClickListener() {
+
+            public void onClick(DialogInterface dialog, int which) {
+                Message reqMsg = new Message();
+                req.putInt("action", Connector.VOTE_ACTION);
+                req.putBoolean("type", true);
+                reqMsg.setData(req);
+                connectorCmd.sendMessage(reqMsg);
+                dialog.dismiss();
+            }
+
+        });
+
+        builder.setNegativeButton(R.string.vote_dialog_no,
+                new DialogInterface.OnClickListener() {
+
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Message reqMsg = new Message();
+                req.putInt("action", Connector.VOTE_ACTION);
+                req.putBoolean("type", false);
+                reqMsg.setData(req);
+                connectorCmd.sendMessage(reqMsg);
+                dialog.dismiss();
+            }
+        });
+
+        AlertDialog alert = builder.create();
+        alert.show();
     }
 
     @Override
