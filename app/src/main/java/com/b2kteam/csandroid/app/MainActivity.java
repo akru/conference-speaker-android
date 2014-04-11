@@ -19,6 +19,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,6 +46,7 @@ public class MainActivity extends ActionBarActivity {
     Handler connectorCmd = null;
     ArrayList<String> serverList = new ArrayList<String>();
     ArrayAdapter<String> adapter;
+    boolean recordButtonCkecked = false;
     Bundle servers = new Bundle();
 
     protected void toast(int message) {
@@ -107,18 +109,16 @@ public class MainActivity extends ActionBarActivity {
                             toast(R.string.toast_registration_success);
                             setNotice("Connected");
 
-                            // Enable buttons
-                            ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
+                            // Enable button
+                            ImageView btn = (ImageView) findViewById(R.id.record_button);
                             btn.setClickable(true);
-                            Button vbtn = (Button) findViewById(R.id.vote_button);
-                            vbtn.setClickable(true);
                         }
                         else
                             toast(R.string.toast_registration_error);
                         break;
                     case Connector.CHANNEL_ACTION:
                         // Activate button
-                        ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
+                        ImageView btn = (ImageView) findViewById(R.id.record_button);
                         btn.setClickable(true);
 
                         if (result.contains("success")) {
@@ -133,7 +133,7 @@ public class MainActivity extends ActionBarActivity {
                                 // Mute notice
                                 setNotice(R.string.notice_mute);
                                 // button enabled
-                                btn.setChecked(true);
+                                btn.setBackgroundResource(R.drawable.mic_on);
                             } catch (JSONException e) {
                                 e.printStackTrace();
                                 return;
@@ -142,7 +142,7 @@ public class MainActivity extends ActionBarActivity {
                         else {
                             toast(R.string.toast_channel_error);
                             // button disabled
-                            btn.setChecked(false);
+                            btn.setBackgroundResource(R.drawable.mic_off);
                         }
                         break;
                     case Connector.VOTE_ACTION:
@@ -157,10 +157,11 @@ public class MainActivity extends ActionBarActivity {
         /** Defining the ArrayAdapter to set items to Spinner Widget */
         adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, serverList);
         /** Find server select spinner */
-        Spinner spinner = (Spinner) findViewById(R.id.server_select);
+        //Spinner spinner = (Spinner) findViewById(R.id.server_select);
         /** Setting the adapter to the ListView */
-        spinner.setAdapter(adapter);
+        //spinner.setAdapter(adapter);
         /** Adding radio buttons for the spinner items */
+        /*
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -203,6 +204,7 @@ public class MainActivity extends ActionBarActivity {
 
             }
         });
+        */
 
         // discover message handler
         Handler discoverHandler = new Handler() {
@@ -238,11 +240,11 @@ public class MainActivity extends ActionBarActivity {
 
 
     public void onClick(View view) {
-        ToggleButton btn = (ToggleButton) view;
+        ImageView btn = (ImageView) view;
 
         Bundle req = new Bundle();
-        if (btn.isChecked()) {
-            btn.setChecked(false);
+        if (recordButtonCkecked) {
+            btn.setBackgroundResource(R.drawable.hand_up);
             btn.setClickable(false);
             // Create channel request
             toast(R.string.toast_connecting);
@@ -258,46 +260,8 @@ public class MainActivity extends ActionBarActivity {
             Message reqMsg = new Message();
             reqMsg.setData(req);
             connectorCmd.sendMessage(reqMsg);
+            btn.setBackgroundResource(R.drawable.mic_off);
         }
-    }
-
-    public void onClickVote(View view) {
-        final Bundle req = new Bundle();
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
-        builder.setTitle(R.string.vote_dialog_title);
-        builder.setMessage(R.string.vote_dialog_content);
-
-        builder.setPositiveButton(R.string.vote_dialog_yes,
-                new DialogInterface.OnClickListener() {
-
-            public void onClick(DialogInterface dialog, int which) {
-                Message reqMsg = new Message();
-                req.putInt("action", Connector.VOTE_ACTION);
-                req.putBoolean("type", true);
-                reqMsg.setData(req);
-                connectorCmd.sendMessage(reqMsg);
-                dialog.dismiss();
-            }
-
-        });
-
-        builder.setNegativeButton(R.string.vote_dialog_no,
-                new DialogInterface.OnClickListener() {
-
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                Message reqMsg = new Message();
-                req.putInt("action", Connector.VOTE_ACTION);
-                req.putBoolean("type", false);
-                reqMsg.setData(req);
-                connectorCmd.sendMessage(reqMsg);
-                dialog.dismiss();
-            }
-        });
-
-        AlertDialog alert = builder.create();
-        alert.show();
     }
 
     @Override
@@ -318,6 +282,45 @@ public class MainActivity extends ActionBarActivity {
             case R.id.action_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivityForResult(i, RESULT_OK);
+                break;
+
+            case R.id.action_vote:
+                final Bundle req = new Bundle();
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+                builder.setTitle(R.string.vote_dialog_title);
+                builder.setMessage(R.string.vote_dialog_content);
+
+                builder.setPositiveButton(R.string.vote_dialog_yes,
+                        new DialogInterface.OnClickListener() {
+
+                            public void onClick(DialogInterface dialog, int which) {
+                                Message reqMsg = new Message();
+                                req.putInt("action", Connector.VOTE_ACTION);
+                                req.putBoolean("type", true);
+                                reqMsg.setData(req);
+                                connectorCmd.sendMessage(reqMsg);
+                                dialog.dismiss();
+                            }
+
+                        });
+
+                builder.setNegativeButton(R.string.vote_dialog_no,
+                        new DialogInterface.OnClickListener() {
+
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                Message reqMsg = new Message();
+                                req.putInt("action", Connector.VOTE_ACTION);
+                                req.putBoolean("type", false);
+                                reqMsg.setData(req);
+                                connectorCmd.sendMessage(reqMsg);
+                                dialog.dismiss();
+                            }
+                        });
+
+                AlertDialog alert = builder.create();
+                alert.show();
                 break;
         }
         return true;

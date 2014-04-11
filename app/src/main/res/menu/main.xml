@@ -7,4 +7,14 @@
         android:title="@string/action_settings"
         android:orderInCategory="100"
         app:showAsAction="never" />
+
+    <item android:id="@+id/action_server"
+        android:title="@string/action_server"
+        android:orderInCategory="50"
+        android:showAsAction="never"/>
+
+    <item android:id="@+id/action_vote"
+        android:title="@string/action_vote"
+        android:orderInCategory="10"
+        android:showAsAction="never" />
 </menu>
