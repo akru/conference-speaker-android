@@ -20,6 +20,9 @@ import org.json.JSONObject;
 public class Connector implements Runnable {
 
     private Socket socket = null;
+    private InputStream inputStream = null;
+    private OutputStream outputStream = null;
+    private Thread listener = null;
     private final int readBufferSize = 1000;
     private volatile Handler commandHandler = null;
     private Handler resultHandler;
@@ -29,6 +32,7 @@ public class Connector implements Runnable {
     public static final int CHANNEL_CLOSE_ACTION= 2;
     public static final int VOTE_ACTION         = 3;
 
+
     public Connector(Handler handler) {
         resultHandler = handler;
     }
@@ -37,12 +41,18 @@ public class Connector implements Runnable {
         return commandHandler;
     }
 
-    public String doRegistrationRequest(Bundle serverInfo, Bundle userInfo) throws JSONException, IOException {
+    private void doRegistrationRequest(Bundle serverInfo, Bundle userInfo) throws JSONException, IOException {
         //Close socket when connected
+        if (listener != null)
+            listener.interrupt();
         if (socket != null && socket.isConnected())
             socket.close();
         // open socket connection with server
         socket = new Socket(serverInfo.getString("address"), serverInfo.getInt("port"));
+        inputStream = socket.getInputStream();
+        outputStream = socket.getOutputStream();
+        listener = new Thread(new Listener());
+        listener.start();
 
         JSONObject packet = new JSONObject();
         // set package type
@@ -54,73 +64,35 @@ public class Connector implements Runnable {
         user.put("title", userInfo.getString("title"));
 
         packet.put("user", user);
-        // open out stream
-        OutputStream os = socket.getOutputStream();
         // send JSON packet over socket
-        os.write(packet.toString().getBytes("UTF-8"));
-        // waiting for response
-        InputStream is = socket.getInputStream();
-        // allocate receive buffer
-        byte [] readBuffer = new byte[readBufferSize];
-        // receive response
-        is.read(readBuffer);
-        // parse response
-        String responseJson = new String(readBuffer, "UTF-8");
-        // return response as JSON object
-        return responseJson;
+        outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
-    public String doChannelRequest() throws JSONException, IOException {
-            // prepare request packet
-            JSONObject packet = new JSONObject();
-            packet.put("request", "channel");
-            // open out stream
-            OutputStream os = socket.getOutputStream();
-            // send JSON packet over socket
-            os.write(packet.toString().getBytes("UTF-8"));
-            // waiting for response
-            InputStream is = socket.getInputStream();
-            // allocate receive buffer
-            byte [] readBuffer = new byte[readBufferSize];
-            // receive response
-            is.read(readBuffer);
-            // parse response
-            String responseJson = new String(readBuffer, "UTF-8");
-            // return response as JSON object
-            return responseJson;
+    private void doChannelRequest() throws IOException, JSONException{
+        // prepare request packet
+        JSONObject packet = new JSONObject();
+        packet.put("request", "channel");
+        // send JSON packet over socket
+        outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
-    public void doChannelCloseRequest() throws JSONException, IOException {
+    private void doChannelCloseRequest() throws JSONException, IOException {
         // prepare request packet
         JSONObject packet = new JSONObject();
         packet.put("request", "channel_close");
-        // open out stream
-        OutputStream os = socket.getOutputStream();
         // send JSON packet over socket
-        os.write(packet.toString().getBytes("UTF-8"));
+        outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
-    public String doVoteRequest(boolean type) throws JSONException, IOException {
+    private void doVoteRequest(boolean type) throws JSONException, IOException {
         // prepare request packet
         JSONObject packet = new JSONObject();
         if (type)
             packet.put("request", "vote_yes");
         else
             packet.put("request", "vote_no");
-        // open out stream
-        OutputStream os = socket.getOutputStream();
         // send JSON packet over socket
-        os.write(packet.toString().getBytes("UTF-8"));
-        // waiting for response
-        InputStream is = socket.getInputStream();
-        // allocate receive buffer
-        byte [] readBuffer = new byte[readBufferSize];
-        // receive response
-        is.read(readBuffer);
-        // parse response
-        String responseJson = new String(readBuffer, "UTF-8");
-        // return response as JSON object
-        return responseJson;
+        outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
     private void emitResult(int action, String response) {
@@ -132,6 +104,39 @@ public class Connector implements Runnable {
         resultHandler.sendMessage(msg);
     }
 
+    private class Listener implements Runnable {
+        @Override
+        public void run() {
+            // allocate receive buffer
+            byte [] readBuffer = new byte[readBufferSize];
+
+            while (!Thread.interrupted() && socket.isConnected()) {
+                try {
+                    if (inputStream.available() == 0)
+                        continue;
+                    // receive response
+                    inputStream.read(readBuffer);
+                    // parse response
+                    String response = new String(readBuffer, "UTF-8");
+                    JSONObject responseJson = new JSONObject(response);
+                    // check response type
+                    String requestType = responseJson.getString("request");
+                    if (requestType.equals("registration")) {
+                        emitResult(REGISTRATION_ACTION, response);
+                    } else if (requestType.equals("channel")) {
+                        emitResult(CHANNEL_ACTION, response);
+                    } else if (requestType.equals("vote_yes")) {
+                        emitResult(VOTE_ACTION, response);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     @Override
     public void run() {
         try {
@@ -141,49 +146,30 @@ public class Connector implements Runnable {
                 public void handleMessage(Message msg) {
                     Bundle data = msg.getData();
                     int action = data.getInt("action");
-                    switch (action) {
-                        case REGISTRATION_ACTION:
-                            try {
-                                String result = doRegistrationRequest(
-                                        data.getBundle("server"), data.getBundle("user"));
-                                emitResult(REGISTRATION_ACTION, result);
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            break;
-                        case CHANNEL_ACTION:
-                            try {
-                                String result = doChannelRequest();
-                                emitResult(CHANNEL_ACTION, result);
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            break;
-                        case CHANNEL_CLOSE_ACTION:
-                            try {
+                    try {
+                        switch (action) {
+                            case REGISTRATION_ACTION:
+                                doRegistrationRequest(
+                                        data.getBundle("server"),
+                                        data.getBundle("user"));
+                                break;
+                            case CHANNEL_ACTION:
+                                doChannelRequest();
+                                break;
+                            case CHANNEL_CLOSE_ACTION:
                                 doChannelCloseRequest();
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            break;
-                        case VOTE_ACTION:
-                            try {
-                                String result = doVoteRequest(data.getBoolean("type"));
-                                emitResult(VOTE_ACTION, result);
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            break;
+                                break;
+                            case VOTE_ACTION:
+                                doVoteRequest(data.getBoolean("type"));
+                                break;
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
                 }
+
             };
             Looper.loop();
         } catch (Throwable e) {

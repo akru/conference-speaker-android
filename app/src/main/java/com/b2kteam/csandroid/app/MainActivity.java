@@ -211,17 +211,16 @@ public class MainActivity extends ActionBarActivity {
             }
         };
 
-        if (connector != null)
-            connector.interrupt();
-
-        // Create connector
-        Connector c = new Connector(connectorHandler);
-        // Create connector thread
-        connector = new Thread(c);
-        connector.start();
-        // Waiting for command handler creation
-        while (c.getCommandHandler() == null);
-        connectorCmd = c.getCommandHandler();
+        if (connector == null) {
+            // Create connector
+            Connector c = new Connector(connectorHandler);
+            // Create connector thread
+            connector = new Thread(c);
+            connector.start();
+            // Waiting for command handler creation
+            while (c.getCommandHandler() == null);
+            connectorCmd = c.getCommandHandler();
+        }
 
         // Create registration request
         Bundle req = new Bundle();
@@ -243,8 +242,6 @@ public class MainActivity extends ActionBarActivity {
                 break;
             case CONNECTED:
                 // Create channel request
-                toast(R.string.toast_connecting);
-
                 req = new Bundle();
                 req.putInt("action", Connector.CHANNEL_ACTION);
                 reqMsg = new Message();
@@ -254,18 +251,17 @@ public class MainActivity extends ActionBarActivity {
                 state = ConnectedState.HAND_UP;
                 updateViews();
                 break;
-            case HAND_UP:
-                // TODO: Break the channel request
-                break;
-            case VOICE:
-                // Close channel request
-                if (transmitter != null)
+
+            case HAND_UP: // Cancel channel request
+            case VOICE:   // Close channel request
+                if (transmitter != null && !transmitter.isInterrupted())
                     transmitter.interrupt();
 
                 req = new Bundle();
                 req.putInt("action", Connector.CHANNEL_CLOSE_ACTION);
                 reqMsg = new Message();
                 reqMsg.setData(req);
+                connectorCmd.sendMessage(reqMsg);
 
                 state = ConnectedState.CONNECTED;
                 updateViews();
