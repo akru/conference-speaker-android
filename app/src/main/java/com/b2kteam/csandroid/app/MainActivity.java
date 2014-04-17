@@ -6,24 +6,19 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.DhcpInfo;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.os.Handler;
-import android.preference.Preference;
 import android.preference.PreferenceManager;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.ToggleButton;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -44,18 +39,22 @@ public class MainActivity extends ActionBarActivity {
     Thread connector = null;
     Thread transmitter = null;
     Handler connectorCmd = null;
+
     ArrayList<String> serverList = new ArrayList<String>();
-    ArrayAdapter<String> adapter;
-    boolean recordButtonCkecked = false;
     Bundle servers = new Bundle();
+    Bundle userInfo;
+
+    ConnectedState state = ConnectedState.DISCONNECTED;
+
+    enum ConnectedState {
+        DISCONNECTED,
+        CONNECTED,
+        HAND_UP,
+        VOICE
+    }
 
     protected void toast(int message) {
         Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-    }
-
-    protected void setNotice(String message) {
-        TextView notice = (TextView) findViewById(R.id.hint_text);
-        notice.setText(message);
     }
 
     protected void setNotice(int message) {
@@ -75,136 +74,49 @@ public class MainActivity extends ActionBarActivity {
         return InetAddress.getByAddress(quads);
     }
 
+    protected void updateViews() {
+        ImageView recordButton = (ImageView) findViewById(R.id.record_button);
+        ImageView waveImage = (ImageView) findViewById(R.id.wave_image);
+
+        switch (state) {
+            case DISCONNECTED:
+                setNotice(R.string.notice_disconnected);
+                recordButton.setImageResource(R.drawable.mic_off);
+                waveImage.setImageResource(R.drawable.waves_red);
+                break;
+            case CONNECTED:
+                setNotice(R.string.notice_connected);
+                recordButton.setImageResource(R.drawable.mic_off);
+                waveImage.setImageResource(R.drawable.waves_red);
+                break;
+            case HAND_UP:
+                setNotice(R.string.notice_hand_up);
+                recordButton.setImageResource(R.drawable.hand_up);
+                waveImage.setImageResource(R.drawable.waves_blue);
+                break;
+            case VOICE:
+                setNotice(R.string.notice_mute);
+                recordButton.setImageResource(R.drawable.mic_on);
+                waveImage.setImageResource(R.drawable.waves_green);
+                break;
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if (savedInstanceState != null) {
-            return;
-        }
+//        if (savedInstanceState != null) {
+//            return;
+//        }
+
         SharedPreferences preferences =
                 PreferenceManager.getDefaultSharedPreferences(this);
-        final Bundle userInfo = new Bundle();
+        userInfo = new Bundle();
         userInfo.putString("name", preferences.getString("prefName", "Unknown"));
         userInfo.putString("company", preferences.getString("prefCompany", "Unknown"));
         userInfo.putString("title", preferences.getString("prefTitle", "Unknown"));
-
-        final Handler connectorHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle data = msg.getData();
-                JSONObject response;
-                String result;
-                try {
-                    response = new JSONObject(data.getString("response"));
-                    result = response.getString("result");
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                    return;
-                }
-                switch (data.getInt("action")) {
-                    case Connector.REGISTRATION_ACTION:
-                        if (result.contains("success")) {
-                            toast(R.string.toast_registration_success);
-                            setNotice("Connected");
-
-                            // Enable button
-                            ImageView btn = (ImageView) findViewById(R.id.record_button);
-                            btn.setClickable(true);
-                        }
-                        else
-                            toast(R.string.toast_registration_error);
-                        break;
-                    case Connector.CHANNEL_ACTION:
-                        // Activate button
-                        ImageView btn = (ImageView) findViewById(R.id.record_button);
-                        btn.setClickable(true);
-
-                        if (result.contains("success")) {
-                            toast(R.string.toast_channel_success);
-                            try {
-                                JSONObject channel = response.getJSONObject("channel");
-                                String host = channel.getString("host");
-                                int port = channel.getInt("port");
-                                // Create transmitter thread
-                                transmitter = new Thread(new Transmitter(host, port));
-                                transmitter.start();
-                                // Mute notice
-                                setNotice(R.string.notice_mute);
-                                // button enabled
-                                btn.setBackgroundResource(R.drawable.mic_on);
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                                return;
-                            }
-                        }
-                        else {
-                            toast(R.string.toast_channel_error);
-                            // button disabled
-                            btn.setBackgroundResource(R.drawable.mic_off);
-                        }
-                        break;
-                    case Connector.VOTE_ACTION:
-                        if (result.contains("success"))
-                            toast(R.string.toast_vote_success);
-                        else
-                            toast(R.string.toast_vote_error);
-                        break;
-                }
-            }
-        };
-        /** Defining the ArrayAdapter to set items to Spinner Widget */
-        adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, serverList);
-        /** Find server select spinner */
-        //Spinner spinner = (Spinner) findViewById(R.id.server_select);
-        /** Setting the adapter to the ListView */
-        //spinner.setAdapter(adapter);
-        /** Adding radio buttons for the spinner items */
-        /*
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                // Interrupt translation
-                if (transmitter != null)
-                    transmitter.interrupt();
-
-                // Down record button
-                ToggleButton btn = (ToggleButton) findViewById(R.id.record_button);
-                btn.setChecked(false);
-
-                String serverName = (String) adapterView.getItemAtPosition(i);
-                Bundle server = servers.getBundle(serverName);
-
-                if (connector == null) {
-                    // Create connector
-                    Connector c = new Connector(connectorHandler);
-                    // Create connector thread
-                    connector = new Thread(c);
-                    connector.start();
-                    // Waiting for command handler creation
-                    while (c.getCommandHandler() == null);
-                    connectorCmd = c.getCommandHandler();
-                }
-                // Create registration request
-                Bundle req = new Bundle();
-                req.putInt("action", Connector.REGISTRATION_ACTION);
-                req.putBundle("server", server);
-                req.putBundle("user", userInfo);
-
-                Message reqMsg = new Message();
-                reqMsg.setData(req);
-                connectorCmd.sendMessage(reqMsg);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> adapterView) {
-
-            }
-        });
-        */
 
         // discover message handler
         Handler discoverHandler = new Handler() {
@@ -213,11 +125,9 @@ public class MainActivity extends ActionBarActivity {
                 // Get server info
                 Bundle server = msg.getData();
                 String serverName = server.getString("name");
-                if (!serverList.contains(serverName))
-                {
+                if (!serverList.contains(serverName)) {
                     servers.putBundle(serverName, server);
                     serverList.add(serverName);
-                    adapter.notifyDataSetChanged();
                 }
             }
         };
@@ -238,35 +148,133 @@ public class MainActivity extends ActionBarActivity {
         }
     }
 
+    protected void connectTo(String serverName) {
+        Bundle server = servers.getBundle(serverName);
+
+        Handler connectorHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Bundle data = msg.getData();
+                JSONObject response;
+                String result;
+                try {
+                    response = new JSONObject(data.getString("response"));
+                    result = response.getString("result");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    return;
+                }
+                switch (data.getInt("action")) {
+                    case Connector.REGISTRATION_ACTION:
+                        if (result.contains("success")) {
+                            toast(R.string.toast_registration_success);
+                            state = ConnectedState.CONNECTED;
+                            updateViews();
+                        }
+                        else {
+                            toast(R.string.toast_registration_error);
+                            state = ConnectedState.DISCONNECTED;
+                            updateViews();
+                        }
+                        break;
+                    case Connector.CHANNEL_ACTION:
+                        if (result.contains("success")) {
+                            toast(R.string.toast_channel_success);
+                            try {
+                                JSONObject channel = response.getJSONObject("channel");
+                                String host = channel.getString("host");
+                                int port = channel.getInt("port");
+                                // Create transmitter thread
+                                transmitter = new Thread(new Transmitter(host, port));
+                                transmitter.start();
+                                // Update state
+                                state = ConnectedState.VOICE;
+                                updateViews();
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                                return;
+                            }
+                        }
+                        else {
+                            toast(R.string.toast_channel_error);
+                            state = ConnectedState.CONNECTED;
+                            updateViews();
+                        }
+                        break;
+                    case Connector.VOTE_ACTION:
+                        if (result.contains("success"))
+                            toast(R.string.toast_vote_success);
+                        else
+                            toast(R.string.toast_vote_error);
+                        break;
+                }
+            }
+        };
+
+        if (connector != null)
+            connector.interrupt();
+
+        // Create connector
+        Connector c = new Connector(connectorHandler);
+        // Create connector thread
+        connector = new Thread(c);
+        connector.start();
+        // Waiting for command handler creation
+        while (c.getCommandHandler() == null);
+        connectorCmd = c.getCommandHandler();
+
+        // Create registration request
+        Bundle req = new Bundle();
+        req.putInt("action", Connector.REGISTRATION_ACTION);
+        req.putBundle("server", server);
+        req.putBundle("user", userInfo);
+
+        Message reqMsg = new Message();
+        reqMsg.setData(req);
+        connectorCmd.sendMessage(reqMsg);
+    }
 
     public void onClick(View view) {
-        ImageView btn = (ImageView) view;
+        Bundle req;
+        Message reqMsg;
 
-        Bundle req = new Bundle();
-        if (recordButtonCkecked) {
-            btn.setBackgroundResource(R.drawable.hand_up);
-            btn.setClickable(false);
-            // Create channel request
-            toast(R.string.toast_connecting);
-            req.putInt("action", Connector.CHANNEL_ACTION);
-            Message reqMsg = new Message();
-            reqMsg.setData(req);
-            connectorCmd.sendMessage(reqMsg);
-        }
-        else {
-            if (transmitter != null)
-                transmitter.interrupt();
-            req.putInt("action", Connector.CHANNEL_CLOSE_ACTION);
-            Message reqMsg = new Message();
-            reqMsg.setData(req);
-            connectorCmd.sendMessage(reqMsg);
-            btn.setBackgroundResource(R.drawable.mic_off);
+        switch (state) {
+            case DISCONNECTED:
+                break;
+            case CONNECTED:
+                // Create channel request
+                toast(R.string.toast_connecting);
+
+                req = new Bundle();
+                req.putInt("action", Connector.CHANNEL_ACTION);
+                reqMsg = new Message();
+                reqMsg.setData(req);
+                connectorCmd.sendMessage(reqMsg);
+
+                state = ConnectedState.HAND_UP;
+                updateViews();
+                break;
+            case HAND_UP:
+                // TODO: Break the channel request
+                break;
+            case VOICE:
+                // Close channel request
+                if (transmitter != null)
+                    transmitter.interrupt();
+
+                req = new Bundle();
+                req.putInt("action", Connector.CHANNEL_CLOSE_ACTION);
+                reqMsg = new Message();
+                reqMsg.setData(req);
+
+                state = ConnectedState.CONNECTED;
+                updateViews();
+                break;
         }
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
@@ -285,6 +293,9 @@ public class MainActivity extends ActionBarActivity {
                 break;
 
             case R.id.action_vote:
+                if (state != ConnectedState.CONNECTED)
+                    break;
+
                 final Bundle req = new Bundle();
                 AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
@@ -293,7 +304,7 @@ public class MainActivity extends ActionBarActivity {
 
                 builder.setPositiveButton(R.string.vote_dialog_yes,
                         new DialogInterface.OnClickListener() {
-
+                            @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 Message reqMsg = new Message();
                                 req.putInt("action", Connector.VOTE_ACTION);
@@ -302,12 +313,10 @@ public class MainActivity extends ActionBarActivity {
                                 connectorCmd.sendMessage(reqMsg);
                                 dialog.dismiss();
                             }
-
                         });
 
                 builder.setNegativeButton(R.string.vote_dialog_no,
                         new DialogInterface.OnClickListener() {
-
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 Message reqMsg = new Message();
@@ -321,6 +330,23 @@ public class MainActivity extends ActionBarActivity {
 
                 AlertDialog alert = builder.create();
                 alert.show();
+                break;
+
+            case R.id.action_server:
+                AlertDialog.Builder b = new AlertDialog.Builder(this);
+                b.setTitle(R.string.server_dialog_title);
+
+                String [] items = serverList.toArray(new String[serverList.size()]);
+                b.setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                        dialog.dismiss();
+                        connectTo(serverList.get(which));
+                    }
+                });
+
+                b.show();
                 break;
         }
         return true;

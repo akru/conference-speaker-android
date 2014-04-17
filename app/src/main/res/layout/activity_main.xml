@@ -17,35 +17,37 @@
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
         android:textAlignment="center"
-        android:text="Please mute while you are silent"
+        android:text="@string/notice_mute"
         android:textSize="20sp"/>
 
     <ImageView
-        android:layout_width="60dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:adjustViewBounds="true"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@id/hint_text"
+        android:layout_above="@+id/wave_image"
+        android:src="@drawable/microphone"/>
+
+    <ImageView
+        android:id="@+id/record_button"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:adjustViewBounds="true"
         android:layout_centerHorizontal="true"
-        android:layout_above="@+id/wave_image"
-        android:src="@drawable/microphone"/>
+        android:layout_alignParentBottom="true"
+        android:clickable="false"
+        android:onClick="onClick"
+        android:src="@drawable/mic_off"/>
 
     <ImageView
         android:id="@+id/wave_image"
         android:adjustViewBounds="true"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_marginLeft="25dp"
         android:layout_centerInParent="true"
+        android:layout_above="@id/record_button"
+        android:layout_marginBottom="40dp"
         android:src="@drawable/waves_red"/>
-
-    <ImageView
-        android:id="@+id/record_button"
-        android:layout_width="95dp"
-        android:layout_height="wrap_content"
-        android:adjustViewBounds="true"
-        android:layout_centerHorizontal="true"
-        android:layout_marginBottom="15dp"
-        android:layout_alignParentBottom="true"
-        android:clickable="false"
-        android:onClick="onClick"
-        android:src="@drawable/mic_off"/>
 </RelativeLayout>

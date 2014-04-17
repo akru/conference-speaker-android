@@ -12,8 +12,12 @@
     <string name="vote_dialog_yes">Yes</string>
     <string name="vote_dialog_no">No</string>
 
+    <string name="server_dialog_title">Change the conference</string>
+
     <string name="notice_mute">Please mute while you are silent.</string>
-    <string name="vote_button">Vote</string>
+    <string name="notice_hand_up">Waiting for administrator</string>
+    <string name="notice_connected">Connected with server</string>
+    <string name="notice_disconnected">Disconnected</string>
 
     <string name="toast_discovering">Discovering the server...</string>
     <string name="toast_connecting">Connecting...</string>
