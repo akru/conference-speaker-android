@@ -1,5 +1,6 @@
 package com.b2kteam.csandroid.app.Connector;
 
+import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -53,14 +54,15 @@ public class Discover implements Runnable {
         Bundle data = new Bundle();
 
         JSONObject server = new JSONObject(serverInfo);
-        data.putString("name", server.getString("name"));
-        data.putString("address", server.getString("address"));
-        data.putInt("port", server.getInt("port"));
+        JSONObject info = server.getJSONObject("info");
+        data.putString("name", info.getString("name"));
+        data.putString("address", info.getString("address"));
+        data.putInt("port", info.getInt("port"));
         msg.setData(data);
         handler.sendMessage(msg);
     }
 
     private Handler handler;
     private DatagramSocket socket;
-    private final int inputBufferSize = 100;
+    private final int inputBufferSize = 1000;
 }

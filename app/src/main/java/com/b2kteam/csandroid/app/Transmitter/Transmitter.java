@@ -1,12 +1,9 @@
 package com.b2kteam.csandroid.app.Transmitter;
 
-import android.os.Bundle;
-
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.SocketException;
 
 /**
  * Created by akru on 16.03.14.

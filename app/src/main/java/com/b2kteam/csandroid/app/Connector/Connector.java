@@ -71,7 +71,7 @@ public class Connector implements Runnable {
     private void doChannelRequest() throws IOException, JSONException{
         // prepare request packet
         JSONObject packet = new JSONObject();
-        packet.put("request", "channel");
+        packet.put("request", "channel_open");
         // send JSON packet over socket
         outputStream.write(packet.toString().getBytes("UTF-8"));
     }
@@ -123,7 +123,7 @@ public class Connector implements Runnable {
                     String requestType = responseJson.getString("request");
                     if (requestType.equals("registration")) {
                         emitResult(REGISTRATION_ACTION, response);
-                    } else if (requestType.equals("channel")) {
+                    } else if (requestType.equals("channel_open")) {
                         emitResult(CHANNEL_ACTION, response);
                     } else if (requestType.equals("vote_yes")) {
                         emitResult(VOTE_ACTION, response);
