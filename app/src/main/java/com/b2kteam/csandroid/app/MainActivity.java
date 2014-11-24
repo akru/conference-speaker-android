@@ -6,7 +6,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.DhcpInfo;
-import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.os.Handler;
@@ -25,6 +24,7 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.TreeMap;
 
 import com.b2kteam.csandroid.app.Connector.Connector;
 import com.b2kteam.csandroid.app.Connector.Discover;
@@ -43,6 +43,8 @@ public class MainActivity extends ActionBarActivity {
     ArrayList<String> serverList = new ArrayList<String>();
     Bundle servers = new Bundle();
     Bundle userInfo;
+
+    TreeMap<String, Bundle> voteInfo = new TreeMap<String, Bundle>();
 
     ConnectedState state = ConnectedState.DISCONNECTED;
 
@@ -118,8 +120,8 @@ public class MainActivity extends ActionBarActivity {
         userInfo.putString("company", preferences.getString("prefCompany", "Unknown"));
         userInfo.putString("title", preferences.getString("prefTitle", "Unknown"));
 
-        // discover message handler
-        Handler discoverHandler = new Handler() {
+        // discover message handlers
+        Handler serverInfoHandler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
                 // Get server info
@@ -131,11 +133,21 @@ public class MainActivity extends ActionBarActivity {
                 }
             }
         };
+        Handler voteInfoHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Bundle vote = msg.getData();
+                if (!voteInfo.containsKey(vote.getString("uuid"))) {
+                    voteInfo.put(vote.getString("uuid"), vote);
+                }
+            }
+        };
+
 
         // start discover thread when not started
         try {
             if (discover == null) {
-                discover = new Thread(new Discover(discoverHandler, getBroadcastAddress()));
+                discover = new Thread(new Discover(serverInfoHandler, voteInfoHandler, getBroadcastAddress()));
                 discover.start();
                 toast(R.string.toast_discovering);
             }
@@ -292,40 +304,12 @@ public class MainActivity extends ActionBarActivity {
                 if (state != ConnectedState.CONNECTED)
                     break;
 
-                final Bundle req = new Bundle();
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-
-                builder.setTitle(R.string.vote_dialog_title);
-                builder.setMessage(R.string.vote_dialog_content);
-
-                builder.setPositiveButton(R.string.vote_dialog_yes,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                Message reqMsg = new Message();
-                                req.putInt("action", Connector.VOTE_ACTION);
-                                req.putBoolean("type", true);
-                                reqMsg.setData(req);
-                                connectorCmd.sendMessage(reqMsg);
-                                dialog.dismiss();
-                            }
-                        });
-
-                builder.setNegativeButton(R.string.vote_dialog_no,
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                Message reqMsg = new Message();
-                                req.putInt("action", Connector.VOTE_ACTION);
-                                req.putBoolean("type", false);
-                                reqMsg.setData(req);
-                                connectorCmd.sendMessage(reqMsg);
-                                dialog.dismiss();
-                            }
-                        });
-
-                AlertDialog alert = builder.create();
-                alert.show();
+                if (voteInfo.size() > 0) {
+                    Bundle vote = voteInfo.remove(voteInfo.firstKey());
+                    Intent intent = new Intent(this, Voting.class);
+                    intent.putExtras(vote);
+                    startActivityForResult(intent, 1);
+                }
                 break;
 
             case R.id.action_server:
@@ -336,7 +320,6 @@ public class MainActivity extends ActionBarActivity {
                 b.setItems(items, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-
                         dialog.dismiss();
                         connectTo(serverList.get(which));
                     }
@@ -347,4 +330,26 @@ public class MainActivity extends ActionBarActivity {
         }
         return true;
     }
-}
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
+        if (requestCode == 1) {
+            if(resultCode == RESULT_OK){
+                int answer = data.getIntExtra("answer", 0);
+                String uuid = data.getStringExtra("uuid");
+                String mode = data.getStringExtra("mode");
+                Bundle req = new Bundle();
+                req.putInt("answer", answer);
+                req.putString("mode", mode);
+                req.putString("uuid", uuid);
+                req.putInt("action", Connector.VOTE_ACTION);
+                Message msg = new Message();
+                msg.setData(req);
+                connectorCmd.sendMessage(msg);
+            }
+            if (resultCode == RESULT_CANCELED) {
+                //Write your code if there's no result
+            }
+        }
+    }}

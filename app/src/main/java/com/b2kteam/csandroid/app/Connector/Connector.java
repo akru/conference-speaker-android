@@ -84,13 +84,15 @@ public class Connector implements Runnable {
         outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
-    private void doVoteRequest(boolean type) throws JSONException, IOException {
+    private void doVoteRequest(String uuid, String mode, int answer) throws JSONException, IOException {
         // prepare request packet
         JSONObject packet = new JSONObject();
-        if (type)
-            packet.put("request", "vote_yes");
+        packet.put("request", "vote");
+        packet.put("uuid", uuid);
+        if (mode.contains("simple"))
+            packet.put("answer", answer != 0);
         else
-            packet.put("request", "vote_no");
+            packet.put("answer", answer);
         // send JSON packet over socket
         outputStream.write(packet.toString().getBytes("UTF-8"));
     }
@@ -125,7 +127,7 @@ public class Connector implements Runnable {
                         emitResult(REGISTRATION_ACTION, response);
                     } else if (requestType.equals("channel_open")) {
                         emitResult(CHANNEL_ACTION, response);
-                    } else if (requestType.equals("vote_yes")) {
+                    } else if (requestType.equals("vote")) {
                         emitResult(VOTE_ACTION, response);
                     }
                 } catch (IOException e) {
@@ -160,7 +162,10 @@ public class Connector implements Runnable {
                                 doChannelCloseRequest();
                                 break;
                             case VOTE_ACTION:
-                                doVoteRequest(data.getBoolean("type"));
+                                doVoteRequest(
+                                        data.getString("uuid"),
+                                        data.getString("mode"),
+                                        data.getInt("answer"));
                                 break;
                         }
                     } catch (JSONException e) {

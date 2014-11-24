@@ -2,23 +2,18 @@
 <resources>
 
     <string name="app_name">Conference Speaker</string>
-
     <string name="action_vote">Voting</string>
     <string name="action_server">Server</string>
     <string name="action_settings">Settings</string>
-
-    <string name="vote_dialog_title">Voting</string>
+    <string name="vote_activity_question">Question:</string>
     <string name="vote_dialog_content">You answer?</string>
     <string name="vote_dialog_yes">Yes</string>
     <string name="vote_dialog_no">No</string>
-
     <string name="server_dialog_title">Change the conference</string>
-
     <string name="notice_mute">Please mute while you are silent.</string>
     <string name="notice_hand_up">Waiting for administrator</string>
     <string name="notice_connected">Connected with server</string>
     <string name="notice_disconnected">Disconnected</string>
-
     <string name="toast_discovering">Discovering the server...</string>
     <string name="toast_connecting">Connecting...</string>
     <string name="toast_registration_success">Registration success</string>
@@ -27,4 +22,6 @@
     <string name="toast_channel_error">Channel opening failure!</string>
     <string name="toast_vote_success">Voting accepted</string>
     <string name="toast_vote_error">Voting failure!</string>
+    <string name="title_activity_voting">Voting</string>
+
 </resources>
