@@ -9,6 +9,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -25,65 +26,90 @@ public class Discover implements Runnable {
 
     public Discover(Handler serverInfoHandler,
                     Handler voteHandler,
-                    InetAddress broadcastAddress) throws SocketException, UnknownHostException {
+                    InetAddress broadcastAddress) {
         // store handlers
         serverInfo = serverInfoHandler;
         voteInvite = voteHandler;
         // open UDP broadcast listener
-        socket = new DatagramSocket(DISCOVER_PORT, broadcastAddress);
+        try {
+            socket = new DatagramSocket(DISCOVER_PORT, broadcastAddress);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public void run() {
-        try {
-            while (!Thread.currentThread().isInterrupted()) {
-                DatagramPacket packet =
-                        new DatagramPacket(new byte[inputBufferSize], inputBufferSize);
-                // receive broadcast packet
+        while (!Thread.currentThread().isInterrupted()) {
+            DatagramPacket packet =
+                    new DatagramPacket(new byte[inputBufferSize], inputBufferSize);
+            // receive broadcast packet
+            try {
                 socket.receive(packet);
-                // convert binary data to string
-                JSONObject json = new JSONObject(new String(packet.getData(), "UTF-8"));
-                // notice main thread about new server
-                emitServerInfo(json);
-                emitVoteInvite(json);
+            } catch (IOException e) {
+                e.printStackTrace();
+                continue;
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+            // convert binary data to string
+            JSONObject json = null;
+            try {
+                json = new JSONObject(new String(packet.getData(), "UTF-8"));
+            } catch (JSONException e) {
+                e.printStackTrace();
+                continue;
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+                continue;
+            }
+            // notice main thread about new servers and votes
+            emitServerInfo(json);
+            emitVoteInvite(json);
+        }
+    }
+
+    private void emitServerInfo(JSONObject discoverMsg) {
+        Message msg = new Message();
+        Bundle data = new Bundle();
+        try {
+            data.putString("uuid", discoverMsg.getString("uuid"));
+            JSONObject info = discoverMsg.getJSONObject("info");
+            data.putString("name", info.getString("name"));
+            data.putString("address", info.getString("address"));
+            data.putInt("port", info.getInt("port"));
+            msg.setData(data);
+            serverInfo.sendMessage(msg);
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    private void emitServerInfo(JSONObject discoverMsg) throws JSONException{
+    private void emitVoteInvite(JSONObject discoverMsg) {
+        if (discoverMsg.opt("vote") == null)
+            return;
+
         Message msg = new Message();
         Bundle data = new Bundle();
 
-        JSONObject info = discoverMsg.getJSONObject("info");
-        data.putString("name", info.getString("name"));
-        data.putString("address", info.getString("address"));
-        data.putInt("port", info.getInt("port"));
-        msg.setData(data);
-        serverInfo.sendMessage(msg);
-    }
-
-    private void emitVoteInvite(JSONObject discoverMsg) throws JSONException{
-        Message msg = new Message();
-        Bundle data = new Bundle();
-
-        JSONObject vote = discoverMsg.getJSONObject("vote");
-        data.putString("uuid", vote.getString("uuid"));
-        data.putString("question", vote.getString("question"));
-        data.putString("mode", vote.getString("mode"));
-        if (vote.getString("mode").contains("custom")) {
-            ArrayList<String> answers = new ArrayList<String>();
-            JSONArray jsonAnswers = vote.getJSONArray("answers");
-            for (int i = 0; i < jsonAnswers.length(); i++) {
-                answers.add(jsonAnswers.getString(i));
+        try {
+            JSONObject vote = discoverMsg.getJSONObject("vote");
+            data.putString("uuid", vote.getString("uuid"));
+            data.putString("question", vote.getString("question"));
+            data.putString("mode", vote.getString("mode"));
+            if (vote.getString("mode").contains("custom")) {
+                ArrayList<String> answers = new ArrayList<String>();
+                JSONArray jsonAnswers = vote.getJSONArray("answers");
+                for (int i = 0; i < jsonAnswers.length(); i++) {
+                    answers.add(jsonAnswers.getString(i));
+                }
+                data.putStringArrayList("answers", answers);
             }
-            data.putStringArrayList("answers", answers);
+            msg.setData(data);
+            voteInvite.sendMessage(msg);
+        } catch (JSONException e) {
+            e.printStackTrace();
         }
-        msg.setData(data);
-        voteInvite.sendMessage(msg);
     }
 
     private Handler serverInfo;

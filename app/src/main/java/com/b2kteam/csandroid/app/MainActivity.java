@@ -1,8 +1,6 @@
 package com.b2kteam.csandroid.app;
 
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.DhcpInfo;
@@ -10,21 +8,21 @@ import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.support.v4.app.FragmentTransaction;
+import android.support.v4.view.ViewPager;
+import android.support.v7.app.ActionBar;
+import android.support.v7.app.ActionBar.Tab;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.ImageView;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.ArrayAdapter;
 
-import java.io.IOException;
 import java.net.InetAddress;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.TreeMap;
+import java.util.HashMap;
 
 import com.b2kteam.csandroid.app.Connector.Connector;
 import com.b2kteam.csandroid.app.Connector.Discover;
@@ -34,196 +32,161 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 
-public class MainActivity extends ActionBarActivity {
-    Thread discover = null;
-    Thread connector = null;
-    Thread transmitter = null;
-    Handler connectorCmd = null;
+public class MainActivity extends ActionBarActivity implements VoteInteraction, ServerInteraction, MainInteraction {
+    Thread discover          = null;
+    Thread connector         = null;
+    Thread transmitter       = null;
+    Handler connectorCmd     = null;
 
-    ArrayList<String> serverList = new ArrayList<String>();
-    Bundle servers = new Bundle();
-    Bundle userInfo;
+    int                   currentServer     = -1;
+    ArrayList<String>     serverNameList    = new ArrayList<String>();
+    ArrayList<String>     serverUuidList    = new ArrayList<String>();
+    ArrayAdapter<String>  serverListAdapter = null;
 
-    TreeMap<String, Bundle> voteInfo = new TreeMap<String, Bundle>();
+    String                question          = null;
+    ArrayList<String>     answerList        = new ArrayList<String>();
+    ArrayAdapter<String>  answerListAdapter = null;
 
-    ConnectedState state = ConnectedState.DISCONNECTED;
+    HashMap<String, Bundle> servers  = new HashMap<String, Bundle>();
+    ArrayList<String>       votes    = new ArrayList<String>();
+    Bundle                  userInfo = new Bundle();
 
-    enum ConnectedState {
-        DISCONNECTED,
-        CONNECTED,
-        HAND_UP,
-        VOICE
-    }
+    ConnectedState          state    = ConnectedState.DISCONNECTED;
+    StateChangedListener    stateListener = null;
 
-    protected void toast(int message) {
-        Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
-    }
+    ViewPager pager;
 
-    protected void setNotice(int message) {
-        TextView notice = (TextView) findViewById(R.id.hint_text);
-        notice.setText(message);
-    }
-
-    protected InetAddress getBroadcastAddress() throws IOException {
+    // TODO: Static address usage (no DHCP)
+    InetAddress getBroadcastAddress() {
         WifiManager wifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
         DhcpInfo dhcp = wifi.getDhcpInfo();
-        // handle null somehow
 
         int broadcast = (dhcp.ipAddress & dhcp.netmask) | ~dhcp.netmask;
         byte[] quads = new byte[4];
         for (int k = 0; k < 4; k++)
             quads[k] = (byte) ((broadcast >> k * 8) & 0xFF);
-        return InetAddress.getByAddress(quads);
+        try {
+            return InetAddress.getByAddress(quads);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
-    protected void updateViews() {
-        ImageView recordButton = (ImageView) findViewById(R.id.record_button);
-        ImageView waveImage = (ImageView) findViewById(R.id.wave_image);
+    void loadPreferences() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        userInfo.putString("name",    preferences.getString("prefName", "Unknown"));
+        userInfo.putString("company", preferences.getString("prefCompany", "Unknown"));
+        userInfo.putString("title",   preferences.getString("prefTitle", "Unknown"));
+    }
 
-        switch (state) {
-            case DISCONNECTED:
-                setNotice(R.string.notice_disconnected);
-                recordButton.setImageResource(R.drawable.mic_off);
-                waveImage.setImageResource(R.drawable.waves_red);
-                break;
-            case CONNECTED:
-                setNotice(R.string.notice_connected);
-                recordButton.setImageResource(R.drawable.mic_off);
-                waveImage.setImageResource(R.drawable.waves_red);
-                break;
-            case HAND_UP:
-                setNotice(R.string.notice_hand_up);
-                recordButton.setImageResource(R.drawable.hand_up);
-                waveImage.setImageResource(R.drawable.waves_blue);
-                break;
-            case VOICE:
-                setNotice(R.string.notice_mute);
-                recordButton.setImageResource(R.drawable.mic_on);
-                waveImage.setImageResource(R.drawable.waves_green);
-                break;
-        }
+    void setupBar() {
+        final ActionBar bar = getSupportActionBar();
+        final FragmentAdapter fragmentAdapter =
+                new FragmentAdapter(getSupportFragmentManager());
+        pager = (ViewPager) findViewById(R.id.pager);
+        final ActionBar.TabListener tabListener = new ActionBar.TabListener() {
+            @Override
+            public void onTabSelected(ActionBar.Tab tab, FragmentTransaction ft) {
+                pager.setCurrentItem(tab.getPosition());
+            }
+            @Override
+            public void onTabUnselected(Tab tab, FragmentTransaction fragmentTransaction) {}
+            @Override
+            public void onTabReselected(Tab tab, FragmentTransaction fragmentTransaction) {}
+        };
+
+        bar.setLogo(R.drawable.ic_logo);
+        bar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
+        bar.addTab(bar.newTab().setText(R.string.action_main).setTabListener(tabListener));
+        bar.addTab(bar.newTab().setText(R.string.action_vote).setTabListener(tabListener));
+        bar.addTab(bar.newTab().setText(R.string.action_server).setTabListener(tabListener));
+
+        pager.setAdapter(fragmentAdapter);
+        pager.setOnPageChangeListener(
+                new ViewPager.SimpleOnPageChangeListener() {
+                    @Override
+                    public void onPageSelected(int position) {
+                        bar.setSelectedNavigationItem(position);
+                    }
+                });
+    }
+
+    void startVote(Bundle vote) {
+
+        pager.setCurrentItem(FragmentAdapter.VOTE_FRAGMENT, true);
+    }
+
+    void setState(ConnectedState s) {
+        state = s;
+        if (stateListener != null)
+            stateListener.onStateChanged(s);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-//        if (savedInstanceState != null) {
-//            return;
-//        }
-
-        SharedPreferences preferences =
-                PreferenceManager.getDefaultSharedPreferences(this);
-        userInfo = new Bundle();
-        userInfo.putString("name", preferences.getString("prefName", "Unknown"));
-        userInfo.putString("company", preferences.getString("prefCompany", "Unknown"));
-        userInfo.putString("title", preferences.getString("prefTitle", "Unknown"));
-
-        // discover message handlers
-        Handler serverInfoHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                // Get server info
-                Bundle server = msg.getData();
-                String serverName = server.getString("name");
-                if (!serverList.contains(serverName)) {
-                    servers.putBundle(serverName, server);
-                    serverList.add(serverName);
-                }
-            }
-        };
-        Handler voteInfoHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle vote = msg.getData();
-                if (!voteInfo.containsKey(vote.getString("uuid"))) {
-                    voteInfo.put(vote.getString("uuid"), vote);
-                }
-            }
-        };
-
-
-        // start discover thread when not started
-        try {
-            if (discover == null) {
-                discover = new Thread(new Discover(serverInfoHandler, voteInfoHandler, getBroadcastAddress()));
-                discover.start();
-                toast(R.string.toast_discovering);
-            }
-        } catch (SocketException e) {
-            e.printStackTrace();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    protected void connectTo(String serverName) {
-        Bundle server = servers.getBundle(serverName);
-
-        Handler connectorHandler = new Handler() {
-            @Override
-            public void handleMessage(Message msg) {
-                Bundle data = msg.getData();
-                JSONObject response;
-                String result;
-                try {
-                    response = new JSONObject(data.getString("response"));
-                    result = response.getString("result");
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                    return;
-                }
-                switch (data.getInt("action")) {
-                    case Connector.REGISTRATION_ACTION:
-                        if (result.contains("success")) {
-                            toast(R.string.toast_registration_success);
-                            state = ConnectedState.CONNECTED;
-                            updateViews();
-                        }
-                        else {
-                            toast(R.string.toast_registration_error);
-                            state = ConnectedState.DISCONNECTED;
-                            updateViews();
-                        }
-                        break;
-                    case Connector.CHANNEL_ACTION:
-                        if (result.contains("success")) {
-                            toast(R.string.toast_channel_success);
-                            try {
-                                JSONObject channel = response.getJSONObject("channel");
-                                String host = channel.getString("host");
-                                int port = channel.getInt("port");
-                                // Create transmitter thread
-                                transmitter = new Thread(new Transmitter(host, port));
-                                transmitter.start();
-                                // Update state
-                                state = ConnectedState.VOICE;
-                                updateViews();
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                                return;
-                            }
-                        }
-                        else {
-                            toast(R.string.toast_channel_error);
-                            state = ConnectedState.CONNECTED;
-                            updateViews();
-                        }
-                        break;
-                    case Connector.VOTE_ACTION:
-                        if (result.contains("success"))
-                            toast(R.string.toast_vote_success);
-                        else
-                            toast(R.string.toast_vote_error);
-                        break;
-                }
-            }
-        };
+        loadPreferences();
+        setupBar();
 
         if (connector == null) {
+            Handler connectorHandler = new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    Log.i("conH", "Msg reached");
+                    Bundle data = msg.getData();
+                    JSONObject response;
+                    String result;
+                    try {
+                        response = new JSONObject(data.getString("response"));
+                        result = response.getString("result");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                        return;
+                    }
+                    switch (data.getInt("action")) {
+                        case Connector.REGISTRATION_ACTION:
+                            if (result.contains("success"))
+                                setState(ConnectedState.CONNECTED);
+                            else
+                                setState(ConnectedState.DISCONNECTED);
+                            break;
+                        case Connector.CHANNEL_ACTION:
+                            if (result.contains("success")) {
+                                try {
+                                    JSONObject channel = response.getJSONObject("channel");
+                                    String host = channel.getString("host");
+                                    int port = channel.getInt("port");
+                                    // Create transmitter thread
+                                    transmitter = new Thread(new Transmitter(host, port));
+                                    transmitter.start();
+                                    // Update state
+                                    setState(ConnectedState.VOICE);
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                    return;
+                                }
+                            }
+                            else
+                                setState(ConnectedState.CONNECTED);
+                            break;
+                        case Connector.CHANNEL_CLOSE_ACTION:
+                            if (transmitter != null && !transmitter.isInterrupted())
+                                transmitter.interrupt();
+                            setState(ConnectedState.CONNECTED);
+                            break;
+                        case Connector.VOTE_ACTION:
+                            // TODO: Alert
+//                        if (result.contains("success"))
+//                            toast(R.string.toast_vote_success);
+//                        else
+//                            toast(R.string.toast_vote_error);
+                            break;
+                    }
+                }
+            };
+
             // Create connector
             Connector c = new Connector(connectorHandler);
             // Create connector thread
@@ -234,122 +197,169 @@ public class MainActivity extends ActionBarActivity {
             connectorCmd = c.getCommandHandler();
         }
 
+        // start discover thread when not started
+        if (discover == null) {
+            // List adapters
+            serverListAdapter =
+                    new ArrayAdapter<String>(this,
+                            android.R.layout.simple_list_item_single_choice, serverNameList);
+            answerListAdapter =
+                    new ArrayAdapter<String>(this,
+                            android.R.layout.simple_list_item_single_choice, answerList);
+            // discover message handler
+            Handler serverInfoHandler = new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    // Get server info
+                    Bundle server = msg.getData();
+                    String serverId = server.getString("uuid");
+                    if (!servers.containsKey(serverId)) {
+                        servers.put(serverId, server);
+                        // Save current server UUID
+                        String currentServerId= null;
+                        if (currentServer != -1)
+                            currentServerId = serverUuidList.get(currentServer);
+                        // Update names & UUIDs
+                        serverNameList.clear();
+                        serverUuidList.clear();
+                        for (Bundle srv : servers.values()) {
+                            serverNameList.add(srv.getString("name"));
+                            serverUuidList.add(srv.getString("uuid"));
+                        }
+                        serverListAdapter.notifyDataSetChanged();
+                        // Recover current server
+                        if (currentServerId != null)
+                            currentServer = serverUuidList.indexOf(currentServerId);
+                        // Connect when first server
+                        if (currentServer == -1) {
+                            selectServer(0);
+                        }
+                    }
+                }
+            };
+
+            // Vote message handler
+            Handler voteInfoHandler = new Handler() {
+                @Override
+                public void handleMessage(Message msg) {
+                    Bundle vote = msg.getData();
+                    if (!votes.contains(vote.getString("uuid"))) {
+                        votes.add(vote.getString("uuid"));
+                        startVote(vote);
+                    }
+                }
+            };
+
+            discover = new Thread(new Discover(serverInfoHandler, voteInfoHandler, getBroadcastAddress()));
+            discover.start();
+        }
+    }
+
+// MAIN
+    @Override
+    public ConnectedState getConnectedState() {
+        return state;
+    }
+
+    @Override
+    public void channelRequest() {
+        // Create channel request
+        Bundle req = new Bundle();
+        req.putInt("action", Connector.CHANNEL_ACTION);
+        Message reqMsg = new Message();
+        reqMsg.setData(req);
+        connectorCmd.sendMessage(reqMsg);
+        setState(ConnectedState.HAND_UP);
+    }
+
+    @Override
+    public void channelClose() {
+        Bundle req = new Bundle();
+        req.putInt("action", Connector.CHANNEL_CLOSE_ACTION);
+        Message reqMsg = new Message();
+        reqMsg.setData(req);
+        connectorCmd.sendMessage(reqMsg);
+        setState(ConnectedState.CONNECTED);
+    }
+
+    @Override
+    public void setStateChangedListener(StateChangedListener listener) {
+        stateListener = listener;
+    }
+
+// VOTE
+
+    @Override
+    public String getQuestion() {
+        return question;
+    }
+
+    @Override
+    public ArrayAdapter<String> getAnswerListAdapter() {
+        return  answerListAdapter;
+    }
+
+    @Override
+    public void selectAnswer(int answer) {
+//                int answer = data.getIntExtra("answer", 0);
+//                String uuid = data.getStringExtra("uuid");
+//                String mode = data.getStringExtra("mode");
+//                Bundle req = new Bundle();
+//                req.putInt("answer", answer);
+//                req.putString("mode", mode);
+//                req.putString("uuid", uuid);
+//                req.putInt("action", Connector.VOTE_ACTION);
+//                Message msg = new Message();
+//                msg.setData(req);
+//                connectorCmd.sendMessage(msg);
+    }
+
+// SERVER
+
+    @Override
+    public ArrayAdapter<String> getServerListAdapter() {
+        return serverListAdapter;
+    }
+
+    @Override
+    public int getCurrentServer() {
+        return currentServer;
+    }
+
+    @Override
+    public void selectServer(int srv) {
+        // Double select check
+        if (srv == currentServer) return;
+        currentServer = srv;
+
         // Create registration request
         Bundle req = new Bundle();
         req.putInt("action", Connector.REGISTRATION_ACTION);
-        req.putBundle("server", server);
+        req.putBundle("server", servers.get(serverUuidList.get(srv)));
         req.putBundle("user", userInfo);
-
+        // Prepare message
         Message reqMsg = new Message();
         reqMsg.setData(req);
         connectorCmd.sendMessage(reqMsg);
     }
 
-    public void onClick(View view) {
-        Bundle req;
-        Message reqMsg;
-
-        switch (state) {
-            case DISCONNECTED:
-                break;
-            case CONNECTED:
-                // Create channel request
-                req = new Bundle();
-                req.putInt("action", Connector.CHANNEL_ACTION);
-                reqMsg = new Message();
-                reqMsg.setData(req);
-                connectorCmd.sendMessage(reqMsg);
-
-                state = ConnectedState.HAND_UP;
-                updateViews();
-                break;
-
-            case HAND_UP: // Cancel channel request
-            case VOICE:   // Close channel request
-                if (transmitter != null && !transmitter.isInterrupted())
-                    transmitter.interrupt();
-
-                req = new Bundle();
-                req.putInt("action", Connector.CHANNEL_CLOSE_ACTION);
-                reqMsg = new Message();
-                reqMsg.setData(req);
-                connectorCmd.sendMessage(reqMsg);
-
-                state = ConnectedState.CONNECTED;
-                updateViews();
-                break;
-        }
-    }
+// MENU
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         switch (id) {
             case R.id.action_settings:
                 Intent i = new Intent(this, SettingsActivity.class);
                 startActivityForResult(i, RESULT_OK);
                 break;
-
-            case R.id.action_vote:
-                if (state != ConnectedState.CONNECTED)
-                    break;
-
-                if (voteInfo.size() > 0) {
-                    Bundle vote = voteInfo.remove(voteInfo.firstKey());
-                    Intent intent = new Intent(this, Voting.class);
-                    intent.putExtras(vote);
-                    startActivityForResult(intent, 1);
-                }
-                break;
-
-            case R.id.action_server:
-                AlertDialog.Builder b = new AlertDialog.Builder(this);
-                b.setTitle(R.string.server_dialog_title);
-
-                String [] items = serverList.toArray(new String[serverList.size()]);
-                b.setItems(items, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.dismiss();
-                        connectTo(serverList.get(which));
-                    }
-                });
-
-                b.show();
-                break;
         }
         return true;
     }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-
-        if (requestCode == 1) {
-            if(resultCode == RESULT_OK){
-                int answer = data.getIntExtra("answer", 0);
-                String uuid = data.getStringExtra("uuid");
-                String mode = data.getStringExtra("mode");
-                Bundle req = new Bundle();
-                req.putInt("answer", answer);
-                req.putString("mode", mode);
-                req.putString("uuid", uuid);
-                req.putInt("action", Connector.VOTE_ACTION);
-                Message msg = new Message();
-                msg.setData(req);
-                connectorCmd.sendMessage(msg);
-            }
-            if (resultCode == RESULT_CANCELED) {
-                //Write your code if there's no result
-            }
-        }
-    }}
+}

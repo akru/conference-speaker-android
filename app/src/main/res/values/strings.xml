@@ -2,6 +2,7 @@
 <resources>
 
     <string name="app_name">Conference Speaker</string>
+    <string name="action_main">Main</string>
     <string name="action_vote">Voting</string>
     <string name="action_server">Server</string>
     <string name="action_settings">Settings</string>
