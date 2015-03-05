@@ -43,15 +43,13 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
     ArrayList<String>     serverUuidList    = new ArrayList<String>();
     ArrayAdapter<String>  serverListAdapter = null;
 
-    String                question          = null;
-    ArrayList<String>     answerList        = new ArrayList<String>();
-    ArrayAdapter<String>  answerListAdapter = null;
+    HashMap<String, Bundle> servers       = new HashMap<String, Bundle>();
+    ArrayList<String>       votes         = new ArrayList<String>();
+    VoteHandler             voteHandler   = null;
+    Bundle                  currentVote   = new Bundle();
+    Bundle                  userInfo      = new Bundle();
 
-    HashMap<String, Bundle> servers  = new HashMap<String, Bundle>();
-    ArrayList<String>       votes    = new ArrayList<String>();
-    Bundle                  userInfo = new Bundle();
-
-    ConnectedState          state    = ConnectedState.DISCONNECTED;
+    ConnectedState          state         = ConnectedState.DISCONNECTED;
     StateChangedListener    stateListener = null;
 
     ViewPager pager;
@@ -110,11 +108,6 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
                         bar.setSelectedNavigationItem(position);
                     }
                 });
-    }
-
-    void startVote(Bundle vote) {
-
-        pager.setCurrentItem(FragmentAdapter.VOTE_FRAGMENT, true);
     }
 
     void setState(ConnectedState s) {
@@ -203,9 +196,6 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
             serverListAdapter =
                     new ArrayAdapter<String>(this,
                             android.R.layout.simple_list_item_single_choice, serverNameList);
-            answerListAdapter =
-                    new ArrayAdapter<String>(this,
-                            android.R.layout.simple_list_item_single_choice, answerList);
             // discover message handler
             Handler serverInfoHandler = new Handler() {
                 @Override
@@ -245,7 +235,10 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
                     Bundle vote = msg.getData();
                     if (!votes.contains(vote.getString("uuid"))) {
                         votes.add(vote.getString("uuid"));
-                        startVote(vote);
+                        // TODO: Notify, not move
+                        pager.setCurrentItem(FragmentAdapter.VOTE_FRAGMENT, true);
+                        currentVote = vote;
+                        voteHandler.startVote(vote);
                     }
                 }
             };
@@ -290,28 +283,24 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
 // VOTE
 
     @Override
-    public String getQuestion() {
-        return question;
-    }
-
-    @Override
-    public ArrayAdapter<String> getAnswerListAdapter() {
-        return  answerListAdapter;
+    public void setVoteHandler(VoteHandler handler) {
+        voteHandler = handler;
     }
 
     @Override
     public void selectAnswer(int answer) {
-//                int answer = data.getIntExtra("answer", 0);
-//                String uuid = data.getStringExtra("uuid");
-//                String mode = data.getStringExtra("mode");
-//                Bundle req = new Bundle();
-//                req.putInt("answer", answer);
-//                req.putString("mode", mode);
-//                req.putString("uuid", uuid);
-//                req.putInt("action", Connector.VOTE_ACTION);
-//                Message msg = new Message();
-//                msg.setData(req);
-//                connectorCmd.sendMessage(msg);
+        Bundle req = new Bundle();
+        req.putString("mode", currentVote.getString("mode"));
+        if (currentVote.getString("mode").contains("simple")) {
+            req.putBoolean("answer", answer == 1);
+        } else {
+            req.putInt("answer", answer);
+        }
+        req.putString("uuid", currentVote.getString("uuid"));
+        req.putInt("action", Connector.VOTE_ACTION);
+        Message msg = new Message();
+        msg.setData(req);
+        connectorCmd.sendMessage(msg);
     }
 
 // SERVER

@@ -9,9 +9,23 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
 
-public class VoteFragment extends Fragment implements AdapterView.OnItemClickListener {
-    VoteInteraction interaction;
+import java.util.ArrayList;
+
+interface VoteHandler {
+    void startVote(Bundle vote);
+    void stopVote();
+}
+
+interface VoteInteraction {
+    void setVoteHandler(VoteHandler handler);
+    void selectAnswer(int answer);
+}
+
+public class VoteFragment extends Fragment implements AdapterView.OnItemClickListener, VoteHandler {
+    VoteInteraction interaction = null;
+    Bundle          voteBundle  = null;
 
     public VoteFragment() {
         // Required empty public constructor
@@ -20,45 +34,13 @@ public class VoteFragment extends Fragment implements AdapterView.OnItemClickLis
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        //ListView view = (ListView) activity.findViewById(R.id.listView);
-
-//        ArrayAdapter<String> adapter = null;
-//        if (params.getString("mode").contains("custom"))
-//            adapter = new ArrayAdapter<String>(this,
-//                    android.R.layout.simple_expandable_list_item_1, params.getStringArrayList("answers"));
-//        else {
-//            ArrayList<String> simple = new ArrayList<String>();
-//            simple.add("No");
-//            simple.add("Yes");
-//            adapter = new ArrayAdapter<String>(this,
-//                    android.R.layout.simple_expandable_list_item_1, simple);
-//        }
-//        view.setAdapter(adapter);
-//        view.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-//            @Override
-//            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-//                Intent returnIntent = new Intent();
-//                returnIntent.putExtra("answer", i);
-//                returnIntent.putExtra("uuid", params.getString("uuid"));
-//                returnIntent.putExtra("mode", params.getString("mode"));
-//                setResult(RESULT_OK, returnIntent);
-//                finish();
-//            }
-//        });
-//        TextView label = (TextView) findViewById(R.id.textView);
-//        label.setText(params.getString("question"));
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        View view = inflater.inflate(R.layout.fragment_vote, container, false);
-        ListView answerView = (ListView) view.findViewById(R.id.answerList);
-        answerView.setAdapter(interaction.getAnswerListAdapter());
-        answerView.setOnItemClickListener(this);
-        return view;
+        return inflater.inflate(R.layout.fragment_vote, container, false);
     }
 
     @Override
@@ -73,13 +55,56 @@ public class VoteFragment extends Fragment implements AdapterView.OnItemClickLis
     }
 
     @Override
+    public void onResume() {
+        updateView();
+    }
+
+    @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         interaction.selectAnswer(position);
     }
-}
 
-interface VoteInteraction {
-    String getQuestion();
-    ArrayAdapter<String> getAnswerListAdapter();
-    void selectAnswer(int answer);
+    @Override
+    public void startVote(Bundle vote) {
+        voteBundle = vote;
+    }
+
+    @Override
+    public void stopVote() {
+        voteBundle = null;
+    }
+
+    void updateView() {
+        if (getView() == null) return;
+        if (voteBundle == null) {
+            TextView label = (TextView) getView().findViewById(R.id.questionText);
+            label.setText(R.string.vote_not_started);
+            return;
+        }
+
+        ListView view = (ListView) getView().findViewById(R.id.answerList);
+
+        ArrayAdapter<String> adapter = null;
+        ArrayList<String> answerList = new ArrayList<String>();
+        if (voteBundle.getString("mode").contains("custom")) {
+            answerList = voteBundle.getStringArrayList("answers");
+            adapter = new ArrayAdapter<String>(getActivity(),
+                    android.R.layout.simple_list_item_single_choice, answerList);
+        } else {
+            answerList.add("No");
+            answerList.add("Yes");
+            adapter = new ArrayAdapter<String>(getActivity(),
+                    android.R.layout.simple_list_item_single_choice, answerList);
+        }
+        view.setAdapter(adapter);
+        view.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                interaction.selectAnswer(i);
+                stopVote();
+            }
+        });
+        TextView label = (TextView) getView().findViewById(R.id.questionText);
+        label.setText(voteBundle.getString("question"));
+    }
 }
