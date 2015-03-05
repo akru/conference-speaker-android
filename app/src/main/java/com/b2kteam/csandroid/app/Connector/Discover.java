@@ -42,7 +42,7 @@ public class Discover implements Runnable {
 
     @Override
     public void run() {
-        while (!Thread.currentThread().isInterrupted()) {
+        while (socket != null && !Thread.currentThread().isInterrupted()) {
             DatagramPacket packet =
                     new DatagramPacket(new byte[inputBufferSize], inputBufferSize);
             // receive broadcast packet
@@ -114,6 +114,6 @@ public class Discover implements Runnable {
 
     private Handler serverInfo;
     private Handler voteInvite;
-    private DatagramSocket socket;
+    private volatile DatagramSocket socket;
     private final int inputBufferSize = 1000;
 }

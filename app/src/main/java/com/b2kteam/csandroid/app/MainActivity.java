@@ -117,16 +117,14 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
         return new Handler() {
             @Override
             public void handleMessage(Message msg) {
-                Log.i("conH", "Msg reached");
                 Bundle data = msg.getData();
-                JSONObject response;
-                String result;
+                JSONObject response = new JSONObject();
+                String result = "";
                 try {
                     response = new JSONObject(data.getString("response"));
                     result = response.getString("result");
                 } catch (JSONException e) {
                     e.printStackTrace();
-                    return;
                 }
                 switch (data.getInt("action")) {
                     case Connector.REGISTRATION_ACTION:
@@ -165,6 +163,11 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
 //                            toast(R.string.toast_vote_success);
 //                        else
 //                            toast(R.string.toast_vote_error);
+                        break;
+                    case Connector.DISCONNECTED_ACTION:
+                        if (transmitter != null && !transmitter.isInterrupted())
+                            transmitter.interrupt();
+                        setState(ConnectedState.DISCONNECTED);
                         break;
                 }
             }

@@ -14,6 +14,7 @@ import java.net.Socket;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 
 import org.json.JSONException;
@@ -34,6 +35,7 @@ public class Connector implements Runnable {
     public static final int CHANNEL_ACTION       = 1;
     public static final int CHANNEL_CLOSE_ACTION = 2;
     public static final int VOTE_ACTION          = 3;
+    public static final int DISCONNECTED_ACTION  = 4;
 
 
     public Connector(Handler handler) {
@@ -138,18 +140,18 @@ public class Connector implements Runnable {
         public void run() {
             // allocate receive buffer
             byte [] readBuffer = new byte[1000];
-
-            while (!socket.isClosed() && !Thread.interrupted()) {
+            int readed;
+            while (!Thread.interrupted()) {
                 // receive response
                 try {
-                    inputStream.read(readBuffer);
+                    readed = inputStream.read(readBuffer);
                 } catch (IOException e) {
-                    e.printStackTrace();
                     break;
                 }
+                if (readed <= 0) break;
                 // parse response
                 try {
-                    String response = new String(readBuffer, "UTF-8");
+                    String response = new String(readBuffer, 0, readed, "UTF-8");
                     JSONObject responseJson = new JSONObject(response);
                     // check response type
                     String requestType = responseJson.getString("request");
@@ -169,6 +171,8 @@ public class Connector implements Runnable {
                     e.printStackTrace();
                 }
             }
+            Log.i("Listener", "disconnected");
+            emitResult(DISCONNECTED_ACTION, "");
         }
     }
 
