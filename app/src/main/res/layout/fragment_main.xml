@@ -37,7 +37,6 @@
         android:adjustViewBounds="true"
         android:layout_centerHorizontal="true"
         android:layout_alignParentBottom="true"
-        android:clickable="false"
         android:src="@drawable/mic_off"/>
 
     <ImageView

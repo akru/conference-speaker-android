@@ -67,6 +67,7 @@ public class MainFragment extends Fragment implements View.OnClickListener, Stat
     void updateViews() {
         ImageView recordButton = (ImageView) getView().findViewById(R.id.record_button);
         ImageView waveImage = (ImageView) getView().findViewById(R.id.wave_image);
+        recordButton.setOnClickListener(this);
 
         switch (interaction.getConnectedState()) {
             case DISCONNECTED:
@@ -78,7 +79,6 @@ public class MainFragment extends Fragment implements View.OnClickListener, Stat
                 setNotice(R.string.notice_connected);
                 recordButton.setImageResource(R.drawable.mic_off);
                 waveImage.setImageResource(R.drawable.waves_red);
-                recordButton.setOnClickListener(this);
                 break;
             case HAND_UP:
                 setNotice(R.string.notice_hand_up);

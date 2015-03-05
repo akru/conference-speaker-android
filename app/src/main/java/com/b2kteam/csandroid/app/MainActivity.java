@@ -1,6 +1,8 @@
 package com.b2kteam.csandroid.app;
 
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.DhcpInfo;
@@ -8,6 +10,7 @@ import android.net.wifi.WifiManager;
 import android.os.Message;
 import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBar;
@@ -110,6 +113,142 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
                 });
     }
 
+    Handler connectorHandler() {
+        return new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Log.i("conH", "Msg reached");
+                Bundle data = msg.getData();
+                JSONObject response;
+                String result;
+                try {
+                    response = new JSONObject(data.getString("response"));
+                    result = response.getString("result");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    return;
+                }
+                switch (data.getInt("action")) {
+                    case Connector.REGISTRATION_ACTION:
+                        if (result.contains("success"))
+                            setState(ConnectedState.CONNECTED);
+                        else
+                            setState(ConnectedState.DISCONNECTED);
+                        break;
+                    case Connector.CHANNEL_ACTION:
+                        if (result.contains("success")) {
+                            try {
+                                JSONObject channel = response.getJSONObject("channel");
+                                String host = channel.getString("host");
+                                int port = channel.getInt("port");
+                                // Create transmitter thread
+                                transmitter = new Thread(new Transmitter(host, port));
+                                transmitter.start();
+                                // Update state
+                                setState(ConnectedState.VOICE);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                                return;
+                            }
+                        }
+                        else
+                            setState(ConnectedState.CONNECTED);
+                        break;
+                    case Connector.CHANNEL_CLOSE_ACTION:
+                        if (transmitter != null && !transmitter.isInterrupted())
+                            transmitter.interrupt();
+                        setState(ConnectedState.CONNECTED);
+                        break;
+                    case Connector.VOTE_ACTION:
+                        // TODO: Alert
+//                        if (result.contains("success"))
+//                            toast(R.string.toast_vote_success);
+//                        else
+//                            toast(R.string.toast_vote_error);
+                        break;
+                }
+            }
+        };
+    }
+
+    Handler serverInfoHandler() {
+        return new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                // Get server info
+                Bundle server = msg.getData();
+                String serverId = server.getString("uuid");
+                if (!servers.containsKey(serverId)) {
+                    servers.put(serverId, server);
+                    // Save current server UUID
+                    String currentServerId= null;
+                    if (currentServer != -1)
+                        currentServerId = serverUuidList.get(currentServer);
+                    // Update names & UUIDs
+                    serverNameList.clear();
+                    serverUuidList.clear();
+                    for (Bundle srv : servers.values()) {
+                        serverNameList.add(srv.getString("name"));
+                        serverUuidList.add(srv.getString("uuid"));
+                    }
+                    serverListAdapter.notifyDataSetChanged();
+                    // Recover current server
+                    if (currentServerId != null)
+                        currentServer = serverUuidList.indexOf(currentServerId);
+                    // Connect when first server
+                    if (currentServer == -1) {
+                        selectServer(0);
+                    }
+                }
+            }
+        };
+    }
+
+    Handler voteInfoHandler() {
+        return new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                Bundle vote = msg.getData();
+                if (!votes.contains(vote.getString("uuid"))) {
+                    votes.add(vote.getString("uuid"));
+                    // TODO: Notify, not move
+                    pager.setCurrentItem(FragmentAdapter.VOTE_FRAGMENT, true);
+                    currentVote = vote;
+                    startVote(vote);
+                }
+            }
+        };
+    }
+
+    void startNetwork() {
+        // Make connector
+        if (connector == null) {
+            // Create connector
+            Connector c = new Connector(connectorHandler());
+            // Create connector thread
+            connector = new Thread(c);
+            connector.start();
+            // Waiting for command handler creation
+            while (c.getCommandHandler() == null);
+            connectorCmd = c.getCommandHandler();
+        }
+        // Make discover
+        if (discover == null) {
+            // List adapters
+            serverListAdapter =
+                    new ArrayAdapter<String>(this,
+                            android.R.layout.simple_list_item_single_choice, serverNameList);
+            Discover d = new Discover(serverInfoHandler(), voteInfoHandler(), getBroadcastAddress());
+            discover = new Thread(d);
+            discover.start();
+        }
+    }
+
+    void startVote(Bundle vote) {
+        if (voteHandler != null)
+            voteHandler.startVote(vote);
+    }
+
     void setState(ConnectedState s) {
         state = s;
         if (stateListener != null)
@@ -120,135 +259,40 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        // Load user presets
         loadPreferences();
+        // Set up status bar
         setupBar();
+    }
 
-        if (connector == null) {
-            Handler connectorHandler = new Handler() {
-                @Override
-                public void handleMessage(Message msg) {
-                    Log.i("conH", "Msg reached");
-                    Bundle data = msg.getData();
-                    JSONObject response;
-                    String result;
-                    try {
-                        response = new JSONObject(data.getString("response"));
-                        result = response.getString("result");
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                        return;
-                    }
-                    switch (data.getInt("action")) {
-                        case Connector.REGISTRATION_ACTION:
-                            if (result.contains("success"))
-                                setState(ConnectedState.CONNECTED);
-                            else
-                                setState(ConnectedState.DISCONNECTED);
-                            break;
-                        case Connector.CHANNEL_ACTION:
-                            if (result.contains("success")) {
-                                try {
-                                    JSONObject channel = response.getJSONObject("channel");
-                                    String host = channel.getString("host");
-                                    int port = channel.getInt("port");
-                                    // Create transmitter thread
-                                    transmitter = new Thread(new Transmitter(host, port));
-                                    transmitter.start();
-                                    // Update state
-                                    setState(ConnectedState.VOICE);
-                                } catch (JSONException e) {
-                                    e.printStackTrace();
-                                    return;
-                                }
-                            }
-                            else
-                                setState(ConnectedState.CONNECTED);
-                            break;
-                        case Connector.CHANNEL_CLOSE_ACTION:
-                            if (transmitter != null && !transmitter.isInterrupted())
-                                transmitter.interrupt();
-                            setState(ConnectedState.CONNECTED);
-                            break;
-                        case Connector.VOTE_ACTION:
-                            // TODO: Alert
-//                        if (result.contains("success"))
-//                            toast(R.string.toast_vote_success);
-//                        else
-//                            toast(R.string.toast_vote_error);
-                            break;
-                    }
-                }
-            };
-
-            // Create connector
-            Connector c = new Connector(connectorHandler);
-            // Create connector thread
-            connector = new Thread(c);
-            connector.start();
-            // Waiting for command handler creation
-            while (c.getCommandHandler() == null);
-            connectorCmd = c.getCommandHandler();
-        }
-
-        // start discover thread when not started
-        if (discover == null) {
-            // List adapters
-            serverListAdapter =
-                    new ArrayAdapter<String>(this,
-                            android.R.layout.simple_list_item_single_choice, serverNameList);
-            // discover message handler
-            Handler serverInfoHandler = new Handler() {
-                @Override
-                public void handleMessage(Message msg) {
-                    // Get server info
-                    Bundle server = msg.getData();
-                    String serverId = server.getString("uuid");
-                    if (!servers.containsKey(serverId)) {
-                        servers.put(serverId, server);
-                        // Save current server UUID
-                        String currentServerId= null;
-                        if (currentServer != -1)
-                            currentServerId = serverUuidList.get(currentServer);
-                        // Update names & UUIDs
-                        serverNameList.clear();
-                        serverUuidList.clear();
-                        for (Bundle srv : servers.values()) {
-                            serverNameList.add(srv.getString("name"));
-                            serverUuidList.add(srv.getString("uuid"));
+    @Override
+    protected  void onResume() {
+        super.onResume();
+        // Check WiFi
+        WifiManager wifi = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+        if (wifi.isWifiEnabled()) {
+            startNetwork();
+        } else {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.wifi_enable_alert_title)
+                    .setMessage(R.string.wifi_enable_alert)
+                    .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
                         }
-                        serverListAdapter.notifyDataSetChanged();
-                        // Recover current server
-                        if (currentServerId != null)
-                            currentServer = serverUuidList.indexOf(currentServerId);
-                        // Connect when first server
-                        if (currentServer == -1) {
-                            selectServer(0);
+                    })
+                    .setNegativeButton(android.R.string.cancel, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            finish();
                         }
-                    }
-                }
-            };
-
-            // Vote message handler
-            Handler voteInfoHandler = new Handler() {
-                @Override
-                public void handleMessage(Message msg) {
-                    Bundle vote = msg.getData();
-                    if (!votes.contains(vote.getString("uuid"))) {
-                        votes.add(vote.getString("uuid"));
-                        // TODO: Notify, not move
-                        pager.setCurrentItem(FragmentAdapter.VOTE_FRAGMENT, true);
-                        currentVote = vote;
-                        voteHandler.startVote(vote);
-                    }
-                }
-            };
-
-            discover = new Thread(new Discover(serverInfoHandler, voteInfoHandler, getBroadcastAddress()));
-            discover.start();
+                    })
+                    .show();
         }
     }
 
-// MAIN
+    // MAIN
     @Override
     public ConnectedState getConnectedState() {
         return state;
@@ -291,7 +335,7 @@ public class MainActivity extends ActionBarActivity implements VoteInteraction, 
     public void selectAnswer(int answer) {
         Bundle req = new Bundle();
         req.putString("mode", currentVote.getString("mode"));
-        if (currentVote.getString("mode").contains("simple")) {
+        if (currentVote.getString("mode").equals("simple")) {
             req.putBoolean("answer", answer == 1);
         } else {
             req.putInt("answer", answer);

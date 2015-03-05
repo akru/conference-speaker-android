@@ -111,15 +111,15 @@ public class Connector implements Runnable {
         outputStream.write(packet.toString().getBytes("UTF-8"));
     }
 
-    private void doVoteRequest(String uuid, String mode, int answer) throws JSONException, IOException {
+    private void doVoteRequest(Bundle data) throws JSONException, IOException {
         // prepare request packet
         JSONObject packet = new JSONObject();
         packet.put("request", "vote");
-        packet.put("uuid", uuid);
-        if (mode.contains("simple"))
-            packet.put("answer", answer != 0);
+        packet.put("uuid", data.getString("uuid"));
+        if (data.getString("mode").equals("simple"))
+            packet.put("answer", data.getBoolean("answer"));
         else
-            packet.put("answer", answer);
+            packet.put("answer", data.getInt("answer"));
         // send JSON packet over socket
         outputStream.write(packet.toString().getBytes("UTF-8"));
     }
@@ -194,10 +194,7 @@ public class Connector implements Runnable {
                             doChannelCloseRequest();
                             break;
                         case VOTE_ACTION:
-                            doVoteRequest(
-                                    data.getString("uuid"),
-                                    data.getString("mode"),
-                                    data.getInt("answer"));
+                            doVoteRequest(data);
                             break;
                     }
                 } catch (JSONException e) {
