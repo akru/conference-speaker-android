@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app;
+package su.whistle.ConferenceSpeaker.app;
 
 import android.app.Activity;
 import android.os.Bundle;

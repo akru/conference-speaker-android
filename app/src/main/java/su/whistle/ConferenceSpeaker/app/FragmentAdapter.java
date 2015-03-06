@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app;
+package su.whistle.ConferenceSpeaker.app;
 
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;

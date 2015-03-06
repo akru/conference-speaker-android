@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app;
+package su.whistle.ConferenceSpeaker.app;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -72,12 +72,12 @@ public class MainFragment extends Fragment implements View.OnClickListener, Stat
         switch (interaction.getConnectedState()) {
             case DISCONNECTED:
                 setNotice(R.string.notice_disconnected);
-                recordButton.setImageResource(R.drawable.mic_off);
+                recordButton.setImageResource(R.drawable.mic_on);
                 waveImage.setImageResource(R.drawable.waves_red);
                 break;
             case CONNECTED:
                 setNotice(R.string.notice_connected);
-                recordButton.setImageResource(R.drawable.mic_off);
+                recordButton.setImageResource(R.drawable.mic_on);
                 waveImage.setImageResource(R.drawable.waves_red);
                 break;
             case HAND_UP:
@@ -87,7 +87,7 @@ public class MainFragment extends Fragment implements View.OnClickListener, Stat
                 break;
             case VOICE:
                 setNotice(R.string.notice_mute);
-                recordButton.setImageResource(R.drawable.mic_on);
+                recordButton.setImageResource(R.drawable.mic_off);
                 waveImage.setImageResource(R.drawable.waves_green);
                 break;
         }

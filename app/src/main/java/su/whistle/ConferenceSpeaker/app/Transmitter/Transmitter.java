@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app.Transmitter;
+package su.whistle.ConferenceSpeaker.app.Transmitter;
 
 import java.io.IOException;
 import java.net.DatagramPacket;

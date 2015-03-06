@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app.Connector;
+package su.whistle.ConferenceSpeaker.app.Connector;
 
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,7 +14,6 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 
 /**

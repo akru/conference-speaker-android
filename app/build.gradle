@@ -6,11 +6,11 @@ android {
     compileSdkVersion 21
     buildToolsVersion '21.1.2'
     defaultConfig {
-        applicationId 'com.b2kteam.csandroid'
+        applicationId 'su.whistle.ConferenceSpeaker'
         minSdkVersion 8
         targetSdkVersion 20
         versionCode 1
-        versionName "1.0"
+        versionName '1.0'
     }
     buildTypes {
         release {

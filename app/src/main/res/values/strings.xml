@@ -2,19 +2,19 @@
 <resources>
 
     <string name="app_name">Conference Speaker</string>
-    <string name="notice_mute">Please mute while you are silent.</string>
-    <string name="notice_hand_up">Waiting for administrator</string>
-    <string name="notice_connected">Connected with server</string>
-    <string name="notice_disconnected">Disconnected</string>
+    <string name="notice_mute"></string>
+    <string name="notice_hand_up">Ожидание администратора</string>
+    <string name="notice_connected">Подключен</string>
+    <string name="notice_disconnected">Нет соединения</string>
 
-    <string name="wifi_enable_alert">Please connect WiFi network first.</string>
+    <string name="wifi_enable_alert">Для начала необходимо подключиться к WiFi сети.</string>
     <string name="wifi_enable_alert_title">WiFi</string>
 
-    <string name="action_settings">Settings</string>
-    <string name="action_main">Main</string>
-    <string name="action_vote">Vote</string>
-    <string name="action_server">Server</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_main">Выступить</string>
+    <string name="action_vote">Голосование</string>
+    <string name="action_server">Конференция</string>
 
-    <string name="vote_not_started">Vote is not started</string>
+    <string name="vote_not_started">Нет доступных голосований</string>
 
 </resources>

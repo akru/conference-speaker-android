@@ -3,12 +3,12 @@
 
     <!-- Strings related to Settings -->
 
-    <string name="pref_user_category">Information about you</string>
-    <string name="pref_user_name">Name</string>
-    <string name="pref_user_name_summary">Your first and second name</string>
-    <string name="pref_user_company">Company</string>
-    <string name="pref_user_company_summary">Your company / organisation</string>
-    <string name="pref_user_title">Title</string>
-    <string name="pref_user_title_summary">Your job title</string>
+    <string name="pref_user_category">Информация об участнике</string>
+    <string name="pref_user_name">Фамилия, Имя</string>
+    <string name="pref_user_name_summary">Остап Бендер</string>
+    <string name="pref_user_company">Компания</string>
+    <string name="pref_user_company_summary">ООО "Рога и копыта"</string>
+    <string name="pref_user_title">Должность</string>
+    <string name="pref_user_title_summary">Менеджер</string>
 
 </resources>

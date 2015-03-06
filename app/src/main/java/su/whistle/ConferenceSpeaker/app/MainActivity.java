@@ -1,4 +1,4 @@
-package com.b2kteam.csandroid.app;
+package su.whistle.ConferenceSpeaker.app;
 
 import android.app.AlertDialog;
 import android.content.Context;
@@ -17,7 +17,6 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.ActionBar.Tab;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
@@ -27,9 +26,9 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import com.b2kteam.csandroid.app.Connector.Connector;
-import com.b2kteam.csandroid.app.Connector.Discover;
-import com.b2kteam.csandroid.app.Transmitter.Transmitter;
+import su.whistle.ConferenceSpeaker.app.Connector.Connector;
+import su.whistle.ConferenceSpeaker.app.Connector.Discover;
+import su.whistle.ConferenceSpeaker.app.Transmitter.Transmitter;
 
 import org.json.JSONException;
 import org.json.JSONObject;
